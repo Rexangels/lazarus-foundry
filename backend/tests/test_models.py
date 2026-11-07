@@ -127,6 +127,8 @@ FIELD_SPECS: list[tuple[type[models.Model], str, type[models.Field], bool]] = [
     (RevivalStrategy, "generated_kiro_specs", models.JSONField, False),
     (RevivalStrategy, "approved_by_human", models.BooleanField, False),
     (RevivalStrategy, "approved_at", models.DateTimeField, True),
+    (RevivalStrategy, "approved_token", models.CharField, False),
+    (RevivalStrategy, "approved_by", models.CharField, False),
     (FoundryRun, "id", models.UUIDField, False),
     (FoundryRun, "project", models.ForeignKey, False),
     (FoundryRun, "strategy", models.ForeignKey, False),

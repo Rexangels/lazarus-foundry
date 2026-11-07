@@ -177,6 +177,56 @@
         "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
         "timestamp": 1794024370556
       }
+    ],
+    "5.1 Implement `score_revival_strategy()` in `apps/revival/scoring.py` using the parameterized $\\text{Score}(S_k)$ formula for `RESTORE`, `MODERNIZE`, and `EXTRACT`.": [
+      {
+        "executionId": "ee1fa153-1858-4748-b8fd-e9cf5b08c06f",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794030103561
+      },
+      {
+        "executionId": "ee1fa153-1858-4748-b8fd-e9cf5b08c06f",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794033019703
+      }
+    ],
+    "5.2 Generate the `.kiro/specs/` recovery bundle (`requirements.md`, `design.md`, `tasks.md`) stored on `RevivalStrategy.generated_kiro_specs`.": [
+      {
+        "executionId": "ee1fa153-1858-4748-b8fd-e9cf5b08c06f",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794033020701
+      },
+      {
+        "executionId": "ee1fa153-1858-4748-b8fd-e9cf5b08c06f",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794037516602
+      }
+    ],
+    "5.3 Expose `GET /api/projects/{project_id}/strategies` and `POST /api/projects/{project_id}/strategies/{strategy_id}/approve`.": [
+      {
+        "executionId": "ee1fa153-1858-4748-b8fd-e9cf5b08c06f",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794037517880
+      },
+      {
+        "executionId": "ee1fa153-1858-4748-b8fd-e9cf5b08c06f",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794038889335
+      }
+    ],
+    "5. Implement System 3: Revival Intelligence & Spec Exporter (`apps.revival`)": [
+      {
+        "executionId": "ee1fa153-1858-4748-b8fd-e9cf5b08c06f",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794038890216
+      }
+    ],
+    "6.1 Build `SandboxRunner` in `apps/foundry/sandbox.py` supporting `SANDBOX_MODE=\"subprocess\"` (isolated venv + `pytest` runner) and `SANDBOX_MODE=\"docker\"` (`python:3.11-slim`, port `8010`).": [
+      {
+        "executionId": "ee1fa153-1858-4748-b8fd-e9cf5b08c06f",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794038890624
+      }
     ]
   }
 }

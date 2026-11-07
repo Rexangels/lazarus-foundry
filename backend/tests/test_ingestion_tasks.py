@@ -296,7 +296,9 @@ def test_demo_ingestion_end_to_end_and_reingest(
     )
     assert todo.structured_metadata["snippet"].strip() == RETRY_ENGINE_TODO_MARKER
     kinds = [event for event, _ in events]
-    assert kinds[0] is TelemetryEventType.INGESTION_STARTED and kinds[-1] is TelemetryEventType.GENOME_COMPLETE
+    assert kinds[0] is TelemetryEventType.INGESTION_STARTED
+    # The genome hands off to strategy generation (apps.genome.tasks.on_genome_complete).
+    assert kinds[-4:] == [TelemetryEventType.GENOME_COMPLETE, *[TelemetryEventType.STRATEGY_GENERATED] * 3]
     assert TelemetryEventType.ERROR not in kinds
     complete = next(payload for event, payload in events if event is TelemetryEventType.INGESTION_COMPLETE)
     assert complete["status"] == ProjectStatus.SYNTHESIZING_GENOME

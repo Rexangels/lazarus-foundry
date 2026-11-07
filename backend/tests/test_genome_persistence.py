@@ -102,8 +102,10 @@ def test_synthesis_task_records_provenance_and_completes(events: Events) -> None
     kinds = [event for event, _ in events]
     assert kinds.count(TelemetryEventType.GENOME_NODE_CREATED) == synthesis.node_count
     assert kinds.count(TelemetryEventType.CONFLICT_DETECTED) == synthesis.conflict_count
-    assert kinds[-1] is TelemetryEventType.GENOME_COMPLETE
-    assert events[-1][1]["mode"] == "DETERMINISTIC" and events[-1][1]["status"] == "AUTOPSY_COMPLETE"
+    complete = kinds.index(TelemetryEventType.GENOME_COMPLETE)
+    assert events[complete][1]["mode"] == "DETERMINISTIC" and events[complete][1]["status"] == "AUTOPSY_COMPLETE"
+    # on_genome_complete hands off to strategy generation (tests/test_revival_persistence.py).
+    assert kinds[complete + 1:] == [TelemetryEventType.STRATEGY_GENERATED] * 3
 
 
 def test_synthesis_failure_marks_the_project_failed(events: Events) -> None:
@@ -178,7 +180,9 @@ def test_demo_status_transitions_end_to_end(
     complete = kinds.index(TelemetryEventType.INGESTION_COMPLETE)
     assert events[complete][1]["status"] == "SYNTHESIZING_GENOME"
     assert complete < kinds.index(TelemetryEventType.GENOME_NODE_CREATED)
-    assert kinds[-1] is TelemetryEventType.GENOME_COMPLETE
+    genome_complete = kinds.index(TelemetryEventType.GENOME_COMPLETE)
+    assert kinds[genome_complete + 1:] == [TelemetryEventType.STRATEGY_GENERATED] * 3
+    assert project.status_detail == ""
     nodes = IntentNode.objects.filter(project=project)
     assert nodes.count() == 6
     assert nodes.filter(vital_status="GHOST_FEATURE", title="PDF Invoice Export").exists()

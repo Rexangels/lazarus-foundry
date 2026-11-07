@@ -11,8 +11,20 @@ Lifecycle (``run_genome_synthesis``, also called inline by
        ``AUTOPSY_COMPLETE``, in one transaction.
     3. Telemetry after commit: ``GENOME_NODE_CREATED`` per node,
        ``CONFLICT_DETECTED`` per conflict, then ``GENOME_COMPLETE``.
-    Any exception sets ``FAILED`` with a user-safe ``status_detail``, emits
-    ``ERROR`` (``stage: "GENOME"``) and logs the traceback. No automatic retries.
+    4. ``on_genome_complete``: the only place that decides what follows a
+       genome. It generates the revival strategies inline, in this worker
+       (``apps.revival.services.run_strategy_generation``), which emits
+       ``STRATEGY_GENERATED`` per strategy. A strategy failure never touches
+       the genome: the project stays ``AUTOPSY_COMPLETE`` with a
+       ``status_detail`` and an ``ERROR`` (``stage: "REVIVAL"``).
+    Any exception in steps 1-3 sets ``FAILED`` with a user-safe ``status_detail``,
+    emits ``ERROR`` (``stage: "GENOME"``) and logs the traceback. No automatic retries.
+
+Why inline rather than a chained Celery task: deterministic generation takes
+milliseconds and reads the genome just committed; running it here needs no
+second enqueue (and no broker-down fallback like ``start_genome_synthesis``),
+and the task returns only once the project's strategies are ready. With a
+model key the prose refinement adds at most one bounded model request.
 """
 from __future__ import annotations
 
@@ -32,6 +44,8 @@ from apps.genome.agents import GenomeReconcilerAgent
 from apps.genome.scoring import UncitedIntentNodeError
 from apps.genome.services import GenomeError, PersistedGenome, load_catalog, persist_genome
 from apps.projects.models import Project, ProjectStatus
+from apps.revival.agents import SpecRefinementAgent
+from apps.revival.services import run_strategy_generation
 from apps.telemetry.broadcast import broadcast_telemetry
 from apps.telemetry.events import TelemetryEventType
 
@@ -126,10 +140,25 @@ def _emit_results(emit: Emit, persisted: PersistedGenome) -> dict[str, Any]:
     return payload
 
 
-def run_genome_synthesis(
-    project_id: UUID | str, *, agent: GenomeReconcilerAgent | None = None, emit: Emit | None = None
+def on_genome_complete(
+    project_id: UUID | str, *, emit: Emit, strategy_agent: SpecRefinementAgent | None = None
 ) -> dict[str, Any]:
-    """Synthesize, persist and announce one project's genome (see the module docstring). Never raises."""
+    """Decide what runs after a committed genome: revival strategy generation, inline. Never raises."""
+    try:
+        return run_strategy_generation(project_id, agent=strategy_agent, emit=emit)
+    except Exception:  # e.g. the database went away; the committed genome must not be reported as failed
+        logger.exception("Strategy generation of project %s could not run.", project_id)
+        return {"project_id": str(project_id), "status": "FAILED"}
+
+
+def run_genome_synthesis(
+    project_id: UUID | str,
+    *,
+    agent: GenomeReconcilerAgent | None = None,
+    emit: Emit | None = None,
+    strategy_agent: SpecRefinementAgent | None = None,
+) -> dict[str, Any]:
+    """Synthesize, persist and announce one project's genome, then hand off (see the module docstring). Never raises."""
     try:
         project = claim_project_for_genome(project_id)
     except Project.DoesNotExist:
@@ -160,12 +189,14 @@ def run_genome_synthesis(
         return {"project_id": str(project.pk), "status": ProjectStatus.FAILED.value, "detail": detail}
 
     summary = _emit_results(emit, persisted)
+    strategies = on_genome_complete(project.pk, emit=emit, strategy_agent=strategy_agent)
     return {
         "project_id": str(project.pk),
         "status": ProjectStatus.AUTOPSY_COMPLETE.value,
         "mode": summary["mode"],
         "node_count": summary["node_count"],
         "conflict_count": summary["conflict_count"],
+        "strategies": strategies["status"],
     }
 
 

@@ -38,11 +38,21 @@ Checked in order (`StatusReason` records which rule decided):
 - Section 1 still applies: a persisted `IntentNode` is scored with `score_intent_node`, which refuses an empty evidence list.
 
 ## 4. Bounded Revival Strategy Feasibility Score Formula $\text{Score}(S_k) \in [0.0, 100.0]$
-Implemented in `backend/apps/revival/scoring.py`:
+Implemented in `backend/apps/revival/scoring.py` (pure; every constant lives in `RevivalScoringParameters` / `DEFAULT_PARAMETERS`). V, D and R are derived from the plan that `backend/apps/revival/planner.py` builds from the genome:
 $$\text{Score}(S_k) = \text{round}\Big(100 \cdot \big(\alpha \cdot V(S_k) + \beta \cdot (1.0 - D(S_k)) + \delta \cdot (1.0 - R(S_k))\big), 1\Big)$$
 Where:
 - Weights sum to $1.0$: $\alpha = 0.50$, $\beta = 0.30$, $\delta = 0.20$.
-- $V(S_k) \in [0.0, 1.0]$: Recovered product value ratio (fraction of `IntentNode` items brought to `VERIFIED_WORKING`).
-- $D(S_k) \in [0.0, 1.0]$: Technical debt remediation cost ($\min(1.0, \text{files\_to\_modify} / 15.0)$).
-- $R(S_k) \in [0.0, 1.0]$: Dependency breakage risk (`0.25` for `RESTORE`, `0.60` for `MODERNIZE`, `0.35` for `EXTRACT`).
+- $V(S_k) \in [0.0, 1.0]$: projected fraction of features (`IntentNode`s) that are `VERIFIED_WORKING` after the plan.
+  - `RESTORE` / `MODERNIZE`: $V = \big(n_\text{verified} + \sum_{f \in \text{in scope}} p_f\big) / n_\text{features}$. Each in-scope target feature counts its feasibility $p_f \in [0, 1]$, the lowest `item_feasibility` among its plan items, so a speculative item never counts as a sure win.
+  - `EXTRACT`: $V = n_\text{extracted} / n_\text{verified}$, the extracted cluster's share of the currently verified features.
+  - $V = 0$ when the denominator is 0.
+  - Item feasibility is the product of named factors (`PlannerParameters`): the kind's base (merge 0.85, complete stub 0.75, fix failing test 0.80, implement from spec 0.50, upgrade 0.90, extract 0.85, add tests 0.90); merge distance $1 / (1 + \text{commits\_behind} / 20)$; open TODO/FIXME markers $\max(0.80, 0.95^n)$; external service 0.60; undeclared dependency 0.70; and $0.90$ per file an extract pulls in from outside its cluster.
+- $D(S_k) \in [0.0, 1.0]$: technical debt remediation cost, $\min(1.0, |\text{files\_to\_modify} \cup \text{files\_to\_create}| / 15.0)$ over all plan items.
+- $R(S_k) \in [0.0, 1.0]$: dependency breakage risk. The base is `0.25` for `RESTORE`, `0.60` for `MODERNIZE` and `0.35` for `EXTRACT`. Named evidence factors (`RiskFactor`) add $\min(\text{cap}, \text{per\_unit} \cdot \text{count})$ each, and the sum is clamped to $[0, 1]$:
+  - `MERGE_DISTANCE` (`RESTORE`, `MODERNIZE`): sum of `commits_behind` of the branches the plan merges, 0.01 each, cap 0.15.
+  - `PINNED_UPGRADES` (`MODERNIZE`): exact pins the plan upgrades, 0.025 each, cap 0.20.
+  - `EXTRACT_BOUNDARY` (`EXTRACT`): files outside the extracted cluster that its imports pull in, 0.05 each, cap 0.20.
+  - With no such evidence (all counts 0), R is exactly the base.
+- V, D and R are rounded to 4 decimals before the formula, so the stored `value_score`, `debt_cost_score` and `risk_score` reproduce the stored `feasibility_score`. Rounding is monotone, so the score is non-decreasing in V and non-increasing in D and R.
 - Because $\alpha + \beta + \delta = 1.0$ and all inputs are bounded in $[0.0, 1.0]$, $\text{Score}(S_k)$ is strictly guaranteed to lie within $[0.0, 100.0]$.
+- Every plan item cites at least one piece of evidence, as section 1 requires of every `IntentNode`: a genome citation id, or the manifest line of a dependency pin.

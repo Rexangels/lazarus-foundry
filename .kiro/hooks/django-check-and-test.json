@@ -3,14 +3,14 @@
   "hooks": [
     {
       "name": "django-system-and-forensic-check",
-      "description": "Runs backend/scripts/dev_check.py: manage.py check, then pytest -m \"not slow\", both with the backend/.venv interpreter. Skips cleanly when backend/manage.py or the venv is missing.",
+      "description": "Runs backend/scripts/dev_check.py: manage.py check and pytest -m \"not slow\" side by side, both with the backend/.venv interpreter. Skips cleanly when backend/manage.py or the venv is missing.",
       "trigger": "PostFileSave",
       "matcher": "^backend[\\\\/].*\\.py$",
       "action": {
         "type": "command",
         "command": "python backend/scripts/dev_check.py"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     }
   ]

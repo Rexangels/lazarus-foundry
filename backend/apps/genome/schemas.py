@@ -93,12 +93,17 @@ def _inline(node: Any, defs: dict[str, Any], *, is_properties: bool = False) -> 
     return node
 
 
-def strict_response_schema() -> dict[str, Any]:
-    """``ModelGenomeResponse`` as a self-contained strict-mode JSON Schema."""
-    schema = ModelGenomeResponse.model_json_schema()
+def strict_json_schema(model: type[BaseModel]) -> dict[str, Any]:
+    """``model`` as a self-contained strict-mode JSON Schema (also used by ``apps.revival.schemas``)."""
+    schema = model.model_json_schema()
     inlined = _inline(schema, schema.get("$defs", {}))
     _enforce_strict(inlined)
     return inlined
+
+
+def strict_response_schema() -> dict[str, Any]:
+    """``ModelGenomeResponse`` as a self-contained strict-mode JSON Schema."""
+    return strict_json_schema(ModelGenomeResponse)
 
 
 def _enforce_strict(node: Any) -> None:

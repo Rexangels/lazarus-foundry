@@ -23,13 +23,13 @@
   - [x] 4.2 Build `GenomeReconcilerAgent` in `apps/genome/agents.py` using the `openai` SDK with `settings.MODEL_BASE_URL`, `settings.MODEL_API_KEY`, and `settings.MODEL_ID` (with deterministic fallback synthesis if API key is absent during offline unit tests) to output `IntentNode`, `EvidenceCitation` (`line_start`, `line_end`, `snippet`), and `ConflictRecord` objects.
   - [x] 4.3 Expose `GET /api/projects/{project_id}/genome`.
 
-- [ ] 5. Implement System 3: Revival Intelligence & Spec Exporter (`apps.revival`)
-  - [ ] 5.1 Implement `score_revival_strategy()` in `apps/revival/scoring.py` using the parameterized $\text{Score}(S_k)$ formula for `RESTORE`, `MODERNIZE`, and `EXTRACT`.
-  - [ ] 5.2 Generate the `.kiro/specs/` recovery bundle (`requirements.md`, `design.md`, `tasks.md`) stored on `RevivalStrategy.generated_kiro_specs`.
-  - [ ] 5.3 Expose `GET /api/projects/{project_id}/strategies` and `POST /api/projects/{project_id}/strategies/{strategy_id}/approve`.
+- [x] 5. Implement System 3: Revival Intelligence & Spec Exporter (`apps.revival`)
+  - [x] 5.1 Implement `score_revival_strategy()` in `apps/revival/scoring.py` using the parameterized $\text{Score}(S_k)$ formula for `RESTORE`, `MODERNIZE`, and `EXTRACT`.
+  - [x] 5.2 Generate the `.kiro/specs/` recovery bundle (`requirements.md`, `design.md`, `tasks.md`) stored on `RevivalStrategy.generated_kiro_specs`.
+  - [x] 5.3 Expose `GET /api/projects/{project_id}/strategies` and `POST /api/projects/{project_id}/strategies/{strategy_id}/approve`.
 
 - [ ] 6. Implement Systems 4 & 5: 4-Agent Foundry & Product Rebirth (`apps.foundry` & `apps.rebirth`)
-  - [ ] 6.1 Build `SandboxRunner` in `apps/foundry/sandbox.py` supporting `SANDBOX_MODE="subprocess"` (isolated venv + `pytest` runner) and `SANDBOX_MODE="docker"` (`python:3.11-slim`, port `8010`).
+  - [-] 6.1 Build `SandboxRunner` in `apps/foundry/sandbox.py` supporting `SANDBOX_MODE="subprocess"` (isolated venv + `pytest` runner) and `SANDBOX_MODE="docker"` (`python:3.11-slim`, port `8010`).
   - [ ] 6.2 Implement all 4 sequential agents in `apps/foundry/agents.py`: `EnvironmentAgent` -> `ArchitectureAgent` -> `EngineeringAgent` -> `VerificationAgent` (with up to 3 self-healing retry loops).
   - [ ] 6.3 Populate `RebirthArtifact` in `apps.rebirth` (unified Git diff, exported `.kiro/specs/` files written into the target repo, Continuity Memory JSON, and PR summary) and expose `GET /api/projects/{project_id}/rebirth`.
 

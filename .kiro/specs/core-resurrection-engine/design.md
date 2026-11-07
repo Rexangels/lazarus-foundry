@@ -116,6 +116,7 @@ Every claim in the genome must cite real evidence, and repository text is untrus
   1. Claim the project from `SYNTHESIZING_GENOME` or `AUTOPSY_COMPLETE` (re-synthesis).
   2. `load_catalog`, then the agent, then `persist_genome` and the status `AUTOPSY_COMPLETE`, in one transaction.
   3. Emit `GENOME_NODE_CREATED` per node (`node_id`, `title`, `category`, `vital_status`, `epistemic_status`, `confidence`, `citation_count`, `graph_position`), `CONFLICT_DETECTED` per conflict, and `GENOME_COMPLETE` (counts per status, `mode`, `fallback_reason`).
+  4. `on_genome_complete(project_id, emit)` is the **only** place that decides what follows a genome. It runs revival strategy generation inline (see "Revival: strategy generation pipeline"), which emits `STRATEGY_GENERATED` per strategy. The task's return value adds `strategies` (`GENERATED`, `FAILED`, `SUPERSEDED`, `REFUSED`).
   - Errors set `FAILED` with a user-safe detail and emit `ERROR` (`stage: "GENOME"`).
   - If `synthesize_genome_task.delay` raises (broker down), `start_genome_synthesis` runs the synthesis inline in the ingestion worker instead of leaving the project in `SYNTHESIZING_GENOME`.
 - **PayPulse genome (deterministic; asserted in `tests/test_genome_reconciler.py`).**
@@ -219,7 +220,206 @@ GenomeNotReadyOut (409) { detail, code: GENOME_PENDING|GENOME_UNAVAILABLE, proje
 - **Never sent:** `raw_content`, `raw_model_response`, the full `input_digest`, `fallback_detail` and embeddings. Snippets are the capped ingestion snippets. The PayPulse body is about 84 KB.
 
 ### 4. `apps.revival`
-- `RevivalStrategy`: `id (UUID)`, `project (FK)`, `strategy_type` (`RESTORE`, `MODERNIZE`, `EXTRACT`), `title`, `summary`, `feasibility_score (float)`, `value_score (float)`, `debt_cost_score (float)`, `risk_score (float)`, `action_plan (JSONField)`, `generated_kiro_specs (JSONField)`, `approved_by_human (bool)`, `approved_at (DateTime, null=True)`.
+- `RevivalStrategy`: `id (UUID)`, `project (FK)`, `synthesis (FK StrategySynthesis, null=True, SET_NULL)`, `strategy_type` (`RESTORE`, `MODERNIZE`, `EXTRACT`), `title`, `summary`, `feasibility_score (float)`, `value_score (float)`, `debt_cost_score (float)`, `risk_score (float)`, `score_breakdown (JSONField)`, `action_plan (JSONField)`, `is_actionable (bool)`, `generated_kiro_specs (JSONField)`, `approved_by_human (bool)`, `approved_at (DateTime, null=True)`, `approved_token (char 64)`, `approved_by (char 255)`. Migration `revival/0003` adds the last two and the partial unique constraint `revival_revivalstrategy_one_approved_per_project` (`project` where `approved_by_human`), so a project has at most one approved strategy.
+- `StrategySynthesis` (provenance of one generation run): `id (UUID)`, `project (FK)`, `genome_synthesis (FK GenomeSynthesis, null=True, SET_NULL)`, `mode` (`DETERMINISTIC`, `MODEL`, `MODEL_FALLBACK`; how the spec prose was written), `model_id`, `started_at`, `finished_at`, `input_digest`, `validation_report (JSONField)`, `raw_model_response`, `preserved_strategy_types (JSONField)`. Migration `revival/0002` adds it with `RevivalStrategy.synthesis`, `score_breakdown` and `is_actionable`, and changes the `action_plan` default to `{}`.
+
+#### Revival: planning and scoring (`apps/revival/planner.py`, `scoring.py`)
+The three strategies differ because the genome's evidence differs, not because of fixed constants. The planner turns the genome into one work order per strategy; the scorer turns each work order into V, D and R and then $\text{Score}(S_k)$ (forensic-invariants §4).
+
+- **Pure planner.** `plan_strategies(genome: GenomeInputs, branches=None, *, dependencies=(), imports=None) -> (RESTORE, MODERNIZE, EXTRACT)`.
+  - The genome is the same `GenomeInputs` the graph builder uses (`FeatureInput.from_model` for a persisted genome, `inputs_from_features` for an in-memory one), so the planner runs without a database.
+  - `dependencies_from_artifacts` reads the default branch's dependency records (with `pinned_version`), and `import_graph_from_artifacts` resolves the default branch's Python imports (absolute, relative, `from pkg import mod`) to repository files plus third-party top-level modules. Both are optional.
+  - A citation's role comes from ingestion data only: source type, file (test files by `is_test_path`, manifests by name), branch, lines and the reconciler's match kind (`score_breakdown["citations"]`, joined on `signal_index`). Branch diff files are `UNMERGED_BRANCH_COMMIT` citations with a file and no lines; their change type and size are read from the cited patch.
+- **Strategy semantics.**
+  - `RESTORE` finishes `ABANDONED_IN_PROGRESS` features in the current stack:
+    - merge each abandoned branch that carries the feature's code (`MERGE_ABANDONED_BRANCH`; added files are `files_to_create`, others `files_to_modify`);
+    - complete each non-abstract stub (`COMPLETE_STUB`; branch stubs depend on the merge);
+    - when the feature has no code of its own at HEAD, make its HEAD tests pass (`FIX_FAILING_TEST`). Those tests are presumed failing and are never edited. The files to change are the modules under test (`test_x.py` → `x.py`, preferring what the test imports) and the HEAD files holding the feature's markers;
+    - add tests (`ADD_TESTS`) when no item of the feature has a target test.
+    - A `GHOST_FEATURE` is in scope only with a design document (an `ISSUE_SPEC` citation that is not a manifest) and no unmet external requirement. It then gets `IMPLEMENT_FROM_SPEC` (the paths the spec names: existing ones are modified, the rest created) plus `ADD_TESTS`.
+    - Everything else goes to `deferred` with a `DeferralReason`: `NO_DETAILED_SPEC`, `NEEDS_NEW_DEPENDENCY`, `NEEDS_EXTERNAL_SERVICE`, `BRANCH_STILL_ACTIVE` (unmerged but not abandoned: left to its owner) or `NO_ACTIONABLE_EVIDENCE`.
+  - `MODERNIZE` is `RESTORE` plus one `UPGRADE_DEPENDENCY` per exact pin on the default branch, cited by its manifest line. No target version is chosen (`requires_resolution=True`, `target_version: null`); the EnvironmentAgent resolves it in the sandbox.
+  - `EXTRACT` copies the highest-value cluster of `VERIFIED_WORKING` features into `extracted/<slug>/` (`EXTRACT_MODULE` per feature, then one `ADD_TESTS` boundary test, `tests/test_public_api.py`).
+    - Clusters are the connected components of verified features under the import graph (one feature per cluster without it), ranked by the sum of C(f), then citation count, then fewer outside files.
+    - Files are copied, not moved, with import paths unchanged, so the copied tests run as they are. Import-closure files outside the cluster are copied too, and each one lowers the item's feasibility and raises R.
+    - Other features are listed in `deferred` as `OUTSIDE_SELECTED_CLUSTER` or `NOT_VERIFIED_WORKING`.
+- **External requirements.** `EXTERNAL_CAPABILITIES` is an explicit table (PDF rendering, QR codes, live FX rates, email, payment gateways, object storage) of trigger words and the packages that provide each capability. It is matched against the feature title and the claim, spec and marker snippets the feature cites.
+  - A third-party dependency is unmet when no providing package is declared. An external service is always unmet, because the sandbox has no network.
+  - A ghost with an unmet requirement is deferred. An abandoned feature stays in scope: its items carry the requirement as a constraint and a feasibility factor, and a service's live part is a partial deferral (`partial: true`).
+- **PlanItem (Task 6's work order; stored in `RevivalStrategy.action_plan`).**
+
+  ```text
+  PlanItem {
+    id: "<strategy>-NN"                    // in execution order
+    kind: MERGE_ABANDONED_BRANCH | COMPLETE_STUB | FIX_FAILING_TEST | IMPLEMENT_FROM_SPEC
+        | UPGRADE_DEPENDENCY | EXTRACT_MODULE | ADD_TESTS
+    stage: ENVIRONMENT | ARCHITECTURE | ENGINEERING   // the FoundryRun.agent_stage that executes it
+    feature_id, feature_key: str | null    // null for project-wide upgrades
+    title, rationale
+    files_to_modify, files_to_create: str[]
+    target_tests: str[]                    // "path" or "path::test"; must pass afterwards, never edited
+    branch: str | null                     // the branch to merge, or the branch a stub lives on
+    evidence: { ref, kind: CITATION | DEPENDENCY, source_type, file_path, line_start, line_end,
+                branch_name, citation_id, artifact_id }[]          // at least one
+    effort: S | M | L                      // from file count and changed lines
+    item_feasibility: float in [0, 1]
+    feasibility_factors: { name, value, detail }[]                // their product is item_feasibility
+    depends_on: str[]                      // earlier item ids only
+    requires_resolution: bool              // true for upgrades
+    dependency: null | { name, ecosystem, manifest, file_path, line_start, current_specifier,
+                         current_version, target_version: null }
+    external_requirements: { capability, kind, label, matched_terms, evidence, candidates }[]
+    open_markers: str[]                    // "path:line: TODO ..." left in the item's files
+    constraints: str[]                     // e.g. keep the signature, no network, copy don't move
+    copies: { source, destination }[]      // EXTRACT: files copied verbatim before editing
+    changed_lines: int
+  }
+  ```
+
+  - Stages map to the Foundry: ENVIRONMENT (upgrades) → ARCHITECTURE (merges, extracts) → ENGINEERING (stubs, specs, failing tests, new tests). VERIFICATION runs the union of `target_tests`.
+  - Ordering is stage, then feature (title, id; cluster rank for an extract), then kind, then file. Plans also carry `in_scope` (feature, feasibility, item ids, `partial`) and `deferred` (feature, reason, detail, evidence, external requirements, `would_touch`).
+- **Scoring.** `score_revival_strategy(v, d, r, params) -> StrategyScore` validates its inputs (finite, in [0, 1]), rounds them to 4 decimals and applies the formula. `score_plan(plan) -> PlanScore` derives V (`value_ratio`), D (`debt_cost`) and R (`strategy_risk`) from the plan.
+  - `PlanScore.model_fields()` gives the four `RevivalStrategy` score columns, which satisfy the existing check constraints.
+  - `PlanScore.as_dict()` is the Defibrillator's JSON breakdown: score, weights, each term in points, the V derivation (verified ids, targets with feasibility), the D file list and the R base with every factor's count, rate, cap and adjustment.
+- **Deliberate deviations and judgment calls.**
+  - R is no longer a pure constant per type. It keeps the spec's bases and only rises through the three named factors above, so neutral evidence gives the spec's values.
+  - `ADD_TESTS` is part of `RESTORE` for targets without any test, so the Foundry can verify what it changes.
+  - Multi-currency is restored (`COMPLETE_STUB` of `convert` against an injectable rate source) rather than deferred whole: the stub's interface and the architecture note define the rate-provider boundary, and only the live ECB fetch needs the network. That live part is a partial deferral and costs the item the external-service factor.
+  - `MODERNIZE` targets the same features as `RESTORE`, so its V is the same. Its extra cost (one more file, higher R) is real, and the value of current dependencies is not part of V as §4 defines it, so it scores lower unless the formula changes.
+  - An `EXTRACT` with nothing verified has no items and V = 0, but the formula still gives it $100 \cdot (0.3 + 0.2 \cdot 0.65) = 43$. `StrategyPlan.is_actionable` is false so Task 5.3 can mark it.
+- **PayPulse (deterministic; asserted in `tests/test_revival_planner.py`).**
+
+  | Strategy | V | D | R | Score | In scope | Deferred |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | RESTORE | 0.6810 | 0.3333 (5 files) | 0.30 (base + 5 commits behind) | 68.1 | Retries: merge `feat/webhook-retry-engine` (`paypulse/retry.py`, `tests/test_retry.py`), complete `delay_for` jitter, make `test_dispatch_retries_with_exponential_backoff` pass by wiring `paypulse/webhooks.py`. Multi-currency: complete `convert`, add `tests/test_currency.py` | PDF export (needs a PDF and a QR code library); multi-currency's live ECB feed (partial) |
+  | MODERNIZE | 0.6810 | 0.4000 (6 files) | 0.70 (base + 0.05 + 2 pins) | 58.1 | RESTORE plus upgrades of `pytest==6.2.4` and `requests==2.25.1` | as RESTORE |
+  | EXTRACT | 0.6667 | 0.6000 (9 files) | 0.40 (base + `currency.py`) | 57.3 | Ledger and invoices into `extracted/paypulse-ledger-invoices/` with their tests and a boundary test | webhooks (cluster worth 0.8665 vs 1.7188), the three non-verified features |
+
+  Feature feasibilities: retries 0.68 (the merge: 0.85 × 0.8), multi-currency 0.4061 (0.75 × 0.95² × 0.6).
+
+#### Revival: strategy generation pipeline (`apps/revival/services.py`)
+- **Chaining.** Generation runs inline at the end of the genome task, through `apps.genome.tasks.on_genome_complete`, not as a chained Celery task. Deterministic generation takes milliseconds and reads the genome just committed. Running it in the same worker needs no second enqueue and no broker-down fallback, and the task returns only once the strategies are ready. With a model key, the prose refinement adds one bounded model request.
+- **`generate_strategies(project, *, agent=None)`.**
+  1. Load the latest genome with `load_genome_inputs`, plus the default branch's `DEPENDENCY_MANIFEST` and `AST_MODULE` rows (`dependencies_from_artifacts`, `import_graph_from_artifacts`).
+  2. Plan with `plan_strategies` and score with `score_plans`.
+  3. Build each skeleton (`build_spec_skeleton`) and validate its deterministic bundle. A `SpecValidationError` is raised before anything is written.
+  4. `SpecRefinementAgent.refine` rewrites the prose. Model failures fall back inside the agent.
+  5. Persist in one transaction under `select_for_update` on the project. The run first re-checks that the project is still `AUTOPSY_COMPLETE` and that the genome it planned from is still the latest `GenomeSynthesis`; otherwise it raises `StaleGenomeError` and writes nothing. It then writes one `StrategySynthesis` and the strategy rows.
+- **Stored fields.**
+  - The four score columns come from `PlanScore.model_fields()`, and `score_breakdown` is `PlanScore.as_dict()`.
+  - `action_plan` = `{items: PlanItem[], in_scope, deferred, files, extract_root, risk_evidence}`.
+  - `is_actionable` = `StrategyPlan.is_actionable`.
+  - `generated_kiro_specs` = `{spec_name, requirements_md, design_md, tasks_md, evidence_index, mode, generated_at}`.
+  - Nothing is written to disk here. Task 6.3 writes the files into the target workspace on the revival branch.
+- **Regeneration and approval.** Unapproved strategies are always deleted and re-created, so they match the latest genome. An approved strategy is never modified or deleted, because it is the human-signed work order. Its type is skipped: the row keeps its scores, plan and specs, `StrategySynthesis.preserved_strategy_types` lists it, and `STRATEGY_GENERATED` reports it with `regenerated: false`. Its plan's feature ids may then refer to a previous genome; that plan is a frozen snapshot by design. Older `StrategySynthesis` rows are kept as history.
+- **Telemetry.** `STRATEGY_GENERATED` per strategy, in `RESTORE`, `MODERNIZE`, `EXTRACT` order: `strategy_id`, `strategy_type`, `title`, `feasibility_score`, `value_score`, `debt_cost_score`, `risk_score`, `in_scope_count`, `deferred_count`, `item_count`, `is_actionable`, `approved_by_human`, `regenerated`, `spec_name`, `spec_mode`, `synthesis_id`. The events follow `GENOME_COMPLETE`.
+- **Failure handling (`run_strategy_generation`, never raises).** The project stays `AUTOPSY_COMPLETE`. The genome is intact and viewable, and re-synthesis from `AUTOPSY_COMPLETE` retries generation; `FAILED` would leave only a full re-ingestion. The run records a user-safe `status_detail`, deletes unapproved strategies (they belong to the replaced genome), logs the traceback and emits `ERROR` with `stage: "REVIVAL"`. A stale run returns `SUPERSEDED` without an error. A project that is not `AUTOPSY_COMPLETE` is refused (`REFUSED`).
+- **Frozen after approval.** `generate_strategies` raises `GenerationRefusedError` before planning unless the project is `AUTOPSY_COMPLETE`, and the persist step raises it under the lock if an approval committed meanwhile; nothing is written. `run_strategy_generation` reports `REFUSED` and records no failure. The failure path (`status_detail`, deleting unapproved rows) also runs only while the project is still `AUTOPSY_COMPLETE`. Genome re-synthesis (`GENOME_CLAIMABLE_STATUSES`) and re-ingestion (`CLAIMABLE_STATUSES`) already refuse a `STRATEGY_APPROVED` project, so no path regenerates an approved project's strategies.
+
+#### Revival: the `.kiro` spec bundle (`apps/revival/specs.py`)
+The bundle is what the resurrected repository inherits and what the Foundry executes, so it follows the format of this spec's own files. `render_spec_bundle(plan, plan_score, genome_inputs) -> SpecBundle(spec_name, requirements_md, design_md, tasks_md, evidence_index)` is pure and deterministic.
+- **Spec name.** `lazarus-<strategy>-<project slug>`, at most 64 characters (`lazarus-restore-paypulse`).
+- **`requirements.md`.** `## Introduction`, then `### Requirement N: <title>` with a `**User Story:**` line and numbered EARS criteria (`WHEN`/`IF … THEN`/`WHILE`/`WHERE`/`THE` … `SHALL`).
+  - There is one requirement per in-scope feature, then "Current dependencies" when the plan upgrades pins, then a final "Verification" requirement.
+  - Feature criteria come from the evidence:
+    - the README claim (`THE <project> system SHALL provide …, as README.md:N claims`);
+    - one criterion per plan item: the merge contains its diff files and nothing else, a stub returns instead of raising and keeps its signature (and resolves its marker), a failing test passes without being edited, a spec section is implemented, new tests run offline;
+    - `IF <service> is unreachable, THEN …` for external services;
+    - every target test (`THE test <id> SHALL pass`);
+    - up to two quoted design notes.
+  - Verification: `python -m pytest` exits 0, tests that passed before still pass, the target tests pass, and failures are repaired in the implementation within 3 self-healing iterations.
+- **`design.md`.** The sections are Overview, Change Set, Merge Plan, Verification Strategy, Risks and Out of Scope, in that order.
+  - Overview: the narrative plus the Score(S_k) breakdown (formula with numbers, V targets, D files, R base plus factors).
+  - Change Set: one section per plan item with kind, stage, effort, the feasibility factors, rationale, files, copies, target tests, dependencies, the dependency pin, external requirements, open markers and constraints.
+  - Merge Plan: per merged branch, its head, ahead/behind counts, dormancy, files, the task order and the conflict policy.
+  - Out of Scope: every deferred feature with its `DeferralReason`, detail, `would_touch` and partial flag.
+- **`tasks.md`.** `- [ ] N. <title>` per plan item in `depends_on` order, then a final "Verify the revival" task.
+  - Each task carries a description and detail bullets (plan item, kind, stage, effort, feasibility, requirement, branch, `Depends on: task …`, files, target tests, evidence).
+  - Each task then has `  - [ ] N.M` sub-tasks: the primary action, one per constraint, one per open marker, and a final `Verify: run python -m pytest <target tests> …` step.
+- **Evidence footnotes.** Every criterion, task, change-set entry, merge and deferral cites `[^E<n>]` footnotes. Labels are assigned in order of first use and are shared by the three files. Each file defines the labels it uses (`` [^E3]: `paypulse/retry.py:28-66` · UNMERGED_BRANCH_COMMIT · on `feat/…` · citation `…` ``). `evidence_index[label]` holds `ref`, `kind`, `source_type`, `file_path`, the lines, `location`, `branch_name`, `citation_id`, `artifact_id` and the cited snippet (300 characters).
+- **Untrusted text.** Repository-derived text (titles, rationales, constraints, markers, quotes) goes through `inline_text`: one line, leading list/heading/checkbox markers stripped, backticks dropped, and `\ [ ] < > |` escaped. It cannot open a code span, footnote, checkbox, list item or HTML. Only the renderer writes code spans and footnote references.
+
+#### Revival: spec prose refinement contract (`apps/revival/agents.py`, `schemas.py`)
+- Follows the `GenomeReconcilerAgent` pattern: it runs only with `MODEL_API_KEY`, and an empty key gives `DETERMINISTIC` with no client built. It makes one `chat.completions.create` with strict `json_schema` (`revival_spec_prose`), uses `reasoning_effort` when set, and has a system prompt that marks repository content as untrusted data.
+- **The model rewrites prose only:** each bundle's `introduction` and `design_overview`, each requirement's `user_story` (by `requirement_id`) and each task's `description` (by `task_id`). The schema has no field for requirements, criteria, tasks, files, tests or evidence. Its objects are response → bundle → story or description (4 objects, depth 3), each with `additionalProperties: false`, every key required, and no `oneOf`/`allOf`. An empty string keeps the draft.
+- **Server-side validation:**
+  - unknown or repeated bundles are dropped, and so are unknown or duplicate ids;
+  - prose is sanitized with `inline_text` and capped (introduction 1,500, overview 2,000, story 600, description 800 characters);
+  - prose that names a file the plan does not know is dropped (`UNKNOWN_FILE`), and a story must read "As …, I want …";
+  - the Markdown is re-rendered from the skeleton plus the accepted prose and must validate.
+- **Fallback.** `MODEL_FALLBACK` keeps the deterministic skeletons and records the reason. It applies on a timeout, an HTTP or connection error, a refusal, truncation, an empty reply, invalid JSON, a schema mismatch, a refined bundle that does not validate (`MODEL_BUNDLE_INVALID`), or no usable prose (`MODEL_NO_USABLE_PROSE`). The digest and the capped raw reply are stored on `StrategySynthesis`, and the key never is.
+
+#### Revival: spec format validator (`specs.validate_spec_bundle`, pure)
+`spec_bundle_problems(bundle, known_files=None)` lists every problem, and `validate_spec_bundle` raises `SpecValidationError` with all of them. It checks:
+- the spec name is a kebab-case slug;
+- `requirements.md`: the `# Requirements` heading, Introduction and Requirements sections, `Requirement N` numbered 1…n, exactly one `**User Story:** As …, I want …` per requirement, `#### Acceptance Criteria` with criteria numbered 1…k that are EARS (keyword first, `SHALL`, `IF` needs `THEN`), at least one footnote per requirement, and a "Verification" requirement;
+- `tasks.md`: the `# Implementation Plan` heading; every checkbox line is `- [ ] N. ` or `  - [ ] N.M ` (anything else, such as deeper nesting, is malformed); tasks are numbered 1…n and sub-tasks N.1…N.m under their parent; every task has sub-tasks, its last sub-task starts with `Verify:`, and it cites at least one footnote;
+- `design.md`: the `# Design` heading and the six sections in order;
+- all files: every footnote reference resolves in `evidence_index` and is defined in the same file, every definition is in the index, and every file path in a code span is in `known_files`. `known_files` covers the plan's files, test files, copies, evidence paths, `would_touch` and the in-scope features' citation paths.
+
+#### Revival: read and approval API (`apps/revival/api.py`, `approval.py`, `services.py`)
+The Defibrillator's backend and the human approval gate. The Foundry may only change code for a strategy with `approved_by_human == True`, and the approval covers exactly the content the human reviewed.
+- **Routes.** The router lives in `apps.revival` and is mounted on `/api/projects/` next to the projects and genome routers.
+  - `GET /api/projects/{project_id}/strategies`: 200 `StrategiesOut`, 404 for an unknown project, 409 `STRATEGIES_PENDING` while the project is `DORMANT`, `INGESTING` or `SYNTHESIZING_GENOME`, and 409 `STRATEGIES_UNAVAILABLE` when no strategy exists in any other status (generation failed; the body carries `status_detail`). A project past `AUTOPSY_COMPLETE` still gets 200 with its frozen strategies. The endpoint runs 3 queries (project, strategies, latest `StrategySynthesis` without `raw_model_response`); the DB test asserts at most 5.
+  - `POST /api/projects/{project_id}/strategies/{strategy_id}/approve`, body `{"approval_token": "<64 lowercase hex>"}` (extra fields, a missing, blank or malformed token: 422).
+  - `GET /api/projects/{project_id}/strategies/{strategy_id}/specs/{doc}`: one document as `text/markdown; charset=utf-8` with `Content-Disposition: inline; filename="<spec_name>-<doc>"` (`?download=true` gives `attachment`). `doc` is checked against the allowlist `requirements.md`, `design.md`, `tasks.md` before any query. Any other name is 404, and a path with `/` never matches the route. The file name stem is the spec name reduced to `[a-z0-9-]`.
+- **Approval token (`approval.approval_token`, pure).** The SHA-256 hex of canonical JSON (sorted keys, no whitespace, UTF-8, `allow_nan=False`) of `{version: "lazarus-approval-v1", strategy_id, strategy_type, scores: {feasibility_score, value_score, debt_cost_score, risk_score}, action_plan, specs: {requirements.md, design.md, tasks.md}}`. Sorted keys make it stable across the JSONB round trip. `evidence_index`, `mode` and `generated_at` are not hashed, because every footnote a document uses is defined in its own Markdown. GET returns the token of each strategy's current content; approve must send it back.
+- **Recommendation (`approval.recommended_strategy_id`, pure).** The highest `feasibility_score` among actionable strategies. Ties go to `RESTORE`, `MODERNIZE`, `EXTRACT` order, then to the smaller id. It is null when no strategy is actionable. PayPulse recommends `RESTORE` (68.1).
+- **Approval (`services.approve_strategy`).** One transaction, `select_for_update` on the project, then the strategy. The checks run in this order:
+  1. 403 `APPROVER_REQUIRED` (in the view, before any query) when `REVIVAL_APPROVAL_REQUIRES_HEADER` is on and `X-Lazarus-Approver` is missing, blank, longer than 255 characters or not printable.
+  2. 404 when the project is unknown or the strategy belongs to another project.
+  3. An already approved strategy: the same token returns 200 with `already_approved: true`, the original `FoundryRun` and no writes or events. A different token is 409 `STRATEGY_STALE`. If the stored `approved_token` no longer matches the content (the row was edited after approval), the response is 409 `APPROVED_CONTENT_CHANGED`.
+  4. 409 `ANOTHER_STRATEGY_APPROVED` (with `approved_strategy_id`) when another strategy of the project is approved.
+  5. 409 `PROJECT_NOT_READY` unless the project is `AUTOPSY_COMPLETE`.
+  6. 409 `STRATEGY_STALE` with `current_approval_token` when the token does not match the current content.
+  7. 409 `STRATEGY_NOT_ACTIONABLE`.
+  - Success sets `approved_by_human`, `approved_at`, `approved_token` (the verified token) and `approved_by` (the header value, or blank), moves the project to `STRATEGY_APPROVED`, and creates a `FoundryRun` (`agent_stage=ENVIRONMENT`, `sandbox_mode=settings.SANDBOX_MODE`). The response is `ApprovalOut` with the approved strategy, `foundry_run_id`, `project_status` and `telemetry_ws_path`.
+  - The partial unique constraint backs rule 4 in the database. An `IntegrityError` from it is reported as `ANOTHER_STRATEGY_APPROVED`.
+  - `approval.approval_is_intact(strategy, strategy.approved_token)` is the check Task 6 runs before each Foundry stage. GET reports it as `approval.approval_intact` for approved strategies.
+- **Foundry hand-off (`services.on_strategy_approved(strategy, foundry_run)`).** It runs after the approval commits (`transaction.on_commit`) and never raises. It is the single place that decides what follows an approval, as `on_ingestion_complete` is for ingestion and `on_genome_complete` for the genome. Today it logs and emits `STRATEGY_APPROVED` (`strategy_id`, `strategy_type`, `title`, `feasibility_score`, `approved_at`, `approved_by`, `foundry_run_id`, `agent_stage`, `sandbox_mode`, `status`). The `FoundryRun` row in `ENVIRONMENT` is the queryable "approved, Foundry queued" state. Task 6.2 makes this function enqueue the Foundry pipeline for that run; nothing is enqueued before that task exists.
+- **Security.** The API has no authentication yet. In local development anyone who can reach the server can approve a strategy. `REVIVAL_APPROVAL_REQUIRES_HEADER` (default `False`, in `.env.example`) makes approval require `X-Lazarus-Approver: <name>`, which is stored as `approved_by`. This gives a hosted demo a minimal gate and an audit name. It is not authentication, because any client can send the header. Real authentication replaces it when the API gets users.
+- **Decisions.**
+  - *Regenerated rows get new ids.* Strategy regeneration deletes and re-creates unapproved rows, so a client that holds an old strategy id gets 404 on approve, not `STRATEGY_STALE`. `STRATEGY_STALE` covers in-place changes such as an admin edit. Clients should refetch on 404 and on every `STRATEGY_GENERATED` event.
+  - *`APPROVED_CONTENT_CHANGED`* is an extra 409 code beyond the five planned. Without it, a tampered approved row would loop the client between `STRATEGY_STALE` and refresh.
+  - *Plan entries are passed through as JSON objects.* `action_plan.items`, `in_scope` and `deferred` are typed `dict[str, Any]`; their shape is the PlanItem block above and the planner is its source of truth.
+
+##### Revival API contract (source of truth for `frontend/src/lib/types.ts`)
+The schemas are in `backend/apps/revival/schemas.py` (`StrategiesOut` and below).
+
+```text
+StrategiesOut {
+  project:   { id: uuid, name, status, status_detail, default_branch }
+  synthesis: null | { id: uuid, mode: DETERMINISTIC|MODEL|MODEL_FALLBACK, model_id, started_at, finished_at,
+                      preserved_strategy_types: str[],
+                      validation: { fallback_reason: str|null, refined_bundle_count, applied_prose_count,
+                                    dropped_prose_count } }
+  recommended_strategy_id: uuid|null
+  approved_strategy_id:    uuid|null
+  telemetry_ws_path
+  strategies: StrategyOut[]                                   // RESTORE, MODERNIZE, EXTRACT
+}
+StrategyOut { id: uuid, strategy_type: RESTORE|MODERNIZE|EXTRACT, title, summary,
+              feasibility_score, value_score, debt_cost_score, risk_score,
+              score_breakdown: {…},                           // PlanScore.as_dict()
+              is_actionable, is_recommended,
+              action_plan: { items: PlanItem[], in_scope: {…}[], deferred: {…}[], files: str[],
+                             extract_root: str|null, risk_evidence: {…} },
+              spec: { spec_name, requirements_md, design_md, tasks_md, evidence_index: {[label]: {…}},
+                      mode, generated_at, document_urls: { requirements_md, design_md, tasks_md } },
+              approval: { approved_by_human, approved_at: datetime|null, approved_by, approval_token,
+                          approval_intact: bool|null },
+              synthesis_id: uuid|null, created_at }
+StrategiesNotReadyOut (409) { detail, code: STRATEGIES_PENDING|STRATEGIES_UNAVAILABLE, project_id, status,
+                              status_detail, telemetry_ws_path }
+ApproveRequest   { approval_token: 64 hex }
+ApprovalOut      { strategy: StrategyOut, foundry_run_id: uuid|null, project_status, already_approved,
+                   telemetry_ws_path }
+ApprovalErrorOut (409) { detail, code: PROJECT_NOT_READY|STRATEGY_STALE|STRATEGY_NOT_ACTIONABLE
+                                       |ANOTHER_STRATEGY_APPROVED|APPROVED_CONTENT_CHANGED,
+                         project_id, strategy_id, current_approval_token: str|null,
+                         approved_strategy_id: uuid|null }
+ApproverRequiredOut (403) { detail, code: "APPROVER_REQUIRED" }
+```
 
 ### 5. `apps.foundry`
 - **Four Sequential Agents (`apps/foundry/agents.py`):**
@@ -247,4 +447,7 @@ All request and response bodies are `ninja.Schema` (Pydantic v2) models; no DRF.
 - **`GET /api/projects/{project_id}`**: `id`, `name`, `repo_url`, `is_golden_demo`, `status`, `status_detail`, `default_branch`, `created_at`, `updated_at`, `ingested_at`, `telemetry_ws_path` and `ingestion` (`branch_count`, `abandoned_branch_count` and `artifact_counts` per type, all counted live from the database, plus `file_status_counts` from the stored summary). Unknown ids return 404.
 - **`GET /api/projects/{project_id}/branches`**: `BranchSnapshot` rows for the Autopsy's BranchNodes, default branch first: `name`, `head_sha`, `last_commit_date`, `is_default`, `is_abandoned`, `commits_ahead`, `commits_behind`, `diff_summary`.
 - **`GET /api/projects/{project_id}/genome`** (`apps/genome/api.py`, Task 4.3): `200 GenomeGraphOut` (the React Flow graph, citations, conflicts, score breakdowns and branches of the latest synthesis), `404` for an unknown project, and `409 GenomeNotReadyOut` while no genome can be shown. The section "Genome: read API" and its "Genome API contract" give the details.
+- **`GET /api/projects/{project_id}/strategies`** (`apps/revival/api.py`, Task 5.3): `200 StrategiesOut` (the three strategies with scores, breakdowns, plans, spec bundles, approval state and `approval_token`, plus `recommended_strategy_id` and the latest `StrategySynthesis` summary), `404`, and `409 StrategiesNotReadyOut` (`STRATEGIES_PENDING`, `STRATEGIES_UNAVAILABLE`).
+- **`POST /api/projects/{project_id}/strategies/{strategy_id}/approve`**: body `{"approval_token"}`. `200 ApprovalOut` (idempotent for the same token), `403 APPROVER_REQUIRED` (only with `REVIVAL_APPROVAL_REQUIRES_HEADER`), `404`, `409 ApprovalErrorOut`, `422` for a malformed body. Success sets the project to `STRATEGY_APPROVED`, creates a `FoundryRun` in `ENVIRONMENT` and emits `STRATEGY_APPROVED` after commit. Unauthenticated in local development.
+- **`GET /api/projects/{project_id}/strategies/{strategy_id}/specs/{doc}`**: `doc` ∈ `requirements.md`, `design.md`, `tasks.md`; `text/markdown` with a `Content-Disposition` file name; 404 otherwise. The section "Revival: read and approval API" gives the details.
 - Telemetry WebSocket: `ws/projects/<uuid:project_id>/telemetry/` (see `apps.telemetry`).

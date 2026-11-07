@@ -285,12 +285,14 @@ def validate_remote_url(url: str, allowed_hosts: Iterable[str] | None = None) ->
     return url
 
 
-def resolve_workspace_dir(workspace_dir: Path | str) -> Path:
+def resolve_workspace_dir(workspace_dir: Path | str, *, require_empty: bool = True) -> Path:
     """Return the resolved workspace directory, which must be strictly inside ``settings.WORKSPACE_ROOT``.
 
     Relative paths are taken relative to ``WORKSPACE_ROOT``. Symlinks are
     resolved before the check, so a link pointing outside the root is
-    rejected. The directory may not exist yet; if it does, it must be empty.
+    rejected. With ``require_empty`` (cloning), the directory may not exist
+    yet; if it does, it must be empty. Without it (the Foundry sandbox), it
+    must be an existing directory.
     """
     root = Path(settings.WORKSPACE_ROOT).expanduser().resolve()
     candidate = Path(workspace_dir).expanduser()
@@ -299,6 +301,10 @@ def resolve_workspace_dir(workspace_dir: Path | str) -> Path:
     resolved = candidate.resolve()
     if resolved == root or not resolved.is_relative_to(root):
         raise UnsafeWorkspaceError(f"workspace {resolved} must be a subdirectory of WORKSPACE_ROOT ({root})")
+    if not require_empty:
+        if not resolved.is_dir():
+            raise UnsafeWorkspaceError(f"workspace {resolved} does not exist or is not a directory")
+        return resolved
     if resolved.exists() or resolved.is_symlink():
         if not resolved.is_dir():
             raise UnsafeWorkspaceError(f"workspace {resolved} exists and is not a directory")

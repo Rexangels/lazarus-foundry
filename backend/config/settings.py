@@ -4,6 +4,7 @@ All environment-specific values come from the repository-root ``.env`` file
 (one level above ``backend/``) or from real environment variables, which take
 precedence over ``.env``. See ``.env.example`` for the full list.
 """
+import re
 from pathlib import Path
 
 import environ
@@ -155,6 +156,14 @@ if not 0 < GENOME_TASK_SOFT_TIME_LIMIT_SECONDS < GENOME_TASK_TIME_LIMIT_SECONDS:
     )
 
 # ---------------------------------------------------------------------------
+# Revival approval gate (apps/revival/api.py)
+# ---------------------------------------------------------------------------
+# The API has no authentication yet. True: POST .../strategies/{id}/approve also requires the header
+# `X-Lazarus-Approver: <name>` (stored as RevivalStrategy.approved_by), a minimal gate for a hosted demo.
+# It is not authentication: anyone who can reach the API can send the header.
+REVIVAL_APPROVAL_REQUIRES_HEADER: bool = env.bool("REVIVAL_APPROVAL_REQUIRES_HEADER", default=False)
+
+# ---------------------------------------------------------------------------
 # Sandbox execution
 # ---------------------------------------------------------------------------
 SANDBOX_MODES: tuple[str, ...] = ("subprocess", "docker")
@@ -164,10 +173,65 @@ if SANDBOX_MODE not in SANDBOX_MODES:
         f"SANDBOX_MODE must be one of {SANDBOX_MODES}, got {SANDBOX_MODE!r}."
     )
 SANDBOX_PREVIEW_PORT: int = env.int("SANDBOX_PREVIEW_PORT", default=8010)
+if not 1 <= SANDBOX_PREVIEW_PORT <= 65535:
+    raise ImproperlyConfigured(f"SANDBOX_PREVIEW_PORT must be a TCP port, got {SANDBOX_PREVIEW_PORT}.")
 
 # Relative values are anchored at the repository root, never the process cwd.
 WORKSPACE_ROOT: Path = resolve_repo_path(env.str("WORKSPACE_ROOT", default="./.lazarus_data/workspaces"))
 FIXTURE_ROOT: Path = resolve_repo_path(env.str("FIXTURE_ROOT", default="./.lazarus_data/fixtures"))
+
+# Sandbox runner (apps/foundry/sandbox.py). Docker mode is the only mode for untrusted
+# repositories; subprocess mode is for the golden demo fixture only (see design.md).
+# `{version}` is replaced by one of SANDBOX_PYTHON_VERSIONS (e.g. python:3.11-slim).
+SANDBOX_DOCKER_IMAGE_TEMPLATE: str = env.str("SANDBOX_DOCKER_IMAGE_TEMPLATE", default="python:{version}-slim")
+SANDBOX_PYTHON_VERSIONS: list[str] = [
+    version.strip()
+    for version in env.list("SANDBOX_PYTHON_VERSIONS", default=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"])
+    if version.strip()
+]
+SANDBOX_DEFAULT_PYTHON: str = env.str("SANDBOX_DEFAULT_PYTHON", default="3.11")
+# Docker resource limits per sandbox container (memory also caps swap: no swap).
+SANDBOX_MEMORY_LIMIT: str = env.str("SANDBOX_MEMORY_LIMIT", default="1g")
+SANDBOX_CPUS: float = env.float("SANDBOX_CPUS", default=1.0)
+SANDBOX_PIDS_LIMIT: int = env.int("SANDBOX_PIDS_LIMIT", default=256)
+# Default per-command timeouts; a command that runs longer is killed (with its process tree).
+SANDBOX_COMMAND_TIMEOUT_SECONDS: int = env.int("SANDBOX_COMMAND_TIMEOUT_SECONDS", default=600)
+SANDBOX_INSTALL_TIMEOUT_SECONDS: int = env.int("SANDBOX_INSTALL_TIMEOUT_SECONDS", default=900)
+# Cap on the stdout and on the stderr kept per command (each); the rest is dropped and flagged.
+SANDBOX_MAX_OUTPUT_BYTES: int = env.int("SANDBOX_MAX_OUTPUT_BYTES", default=1024 * 1024)
+# DANGER: True lets subprocess mode run repositories other than the golden demo directly on this
+# machine, with no network, filesystem or process isolation. Keep False outside throwaway machines.
+SANDBOX_ALLOW_SUBPROCESS_FOR_UNTRUSTED: bool = env.bool("SANDBOX_ALLOW_SUBPROCESS_FOR_UNTRUSTED", default=False)
+# Per-run directories (subprocess venvs, JUnit results, sandbox HOME/TMP). Must not overlap WORKSPACE_ROOT,
+# so nothing a run writes there can end up in a workspace's Git diff.
+SANDBOX_RUNS_ROOT: Path = resolve_repo_path(env.str("SANDBOX_RUNS_ROOT", default="./.lazarus_data/sandbox_runs"))
+
+if "{version}" not in SANDBOX_DOCKER_IMAGE_TEMPLATE:
+    raise ImproperlyConfigured("SANDBOX_DOCKER_IMAGE_TEMPLATE must contain the {version} placeholder.")
+if not SANDBOX_PYTHON_VERSIONS or any(
+    not re.fullmatch(r"3\.\d{1,2}", version) for version in SANDBOX_PYTHON_VERSIONS
+):
+    raise ImproperlyConfigured(
+        f"SANDBOX_PYTHON_VERSIONS must list versions such as 3.11, got {SANDBOX_PYTHON_VERSIONS!r}."
+    )
+if SANDBOX_DEFAULT_PYTHON not in SANDBOX_PYTHON_VERSIONS:
+    raise ImproperlyConfigured(
+        f"SANDBOX_DEFAULT_PYTHON ({SANDBOX_DEFAULT_PYTHON!r}) must be one of SANDBOX_PYTHON_VERSIONS."
+    )
+if not re.fullmatch(r"\d+[bkmg]?", SANDBOX_MEMORY_LIMIT.lower()):
+    raise ImproperlyConfigured(f"SANDBOX_MEMORY_LIMIT must look like 512m or 1g, got {SANDBOX_MEMORY_LIMIT!r}.")
+if SANDBOX_CPUS <= 0 or SANDBOX_PIDS_LIMIT <= 0 or SANDBOX_MAX_OUTPUT_BYTES <= 0:
+    raise ImproperlyConfigured("SANDBOX_CPUS, SANDBOX_PIDS_LIMIT and SANDBOX_MAX_OUTPUT_BYTES must be positive.")
+if SANDBOX_COMMAND_TIMEOUT_SECONDS <= 0 or SANDBOX_INSTALL_TIMEOUT_SECONDS <= 0:
+    raise ImproperlyConfigured("SANDBOX_COMMAND_TIMEOUT_SECONDS and SANDBOX_INSTALL_TIMEOUT_SECONDS must be positive.")
+if (
+    SANDBOX_RUNS_ROOT == WORKSPACE_ROOT
+    or SANDBOX_RUNS_ROOT.is_relative_to(WORKSPACE_ROOT)
+    or WORKSPACE_ROOT.is_relative_to(SANDBOX_RUNS_ROOT)
+):
+    raise ImproperlyConfigured(
+        f"SANDBOX_RUNS_ROOT ({SANDBOX_RUNS_ROOT}) and WORKSPACE_ROOT ({WORKSPACE_ROOT}) must not overlap."
+    )
 
 # ---------------------------------------------------------------------------
 # Ingestion: Git forensics (apps/ingestion/git_forensics.py)

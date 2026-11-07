@@ -7,6 +7,7 @@ tests that do not touch the database always run.
 
 ``paypulse_repo`` builds the "Patient Zero" Git fixture once per session.
 """
+import socket
 from functools import lru_cache
 from typing import Any
 
@@ -23,6 +24,28 @@ from tests.fixtures.build_paypulse_fixture import (
 # Fixtures whose presence (directly or transitively) means a test needs the DB.
 DB_FIXTURES: frozenset[str] = frozenset({"db", "transactional_db", "django_db_setup"})
 PROBE_TIMEOUT_SECONDS: int = 3
+# TCP pre-check per resolved address. On Windows a connect to a closed loopback
+# port is retried for about 2 s before it is refused, and libpq then waits
+# PROBE_TIMEOUT_SECONDS for each of ::1 and 127.0.0.1 (about 6 s in total). A
+# listening local server accepts well within this.
+PORT_PROBE_TIMEOUT_SECONDS: float = 0.5
+
+
+def port_accepts_connections(host: str, port: int, timeout: float = PORT_PROBE_TIMEOUT_SECONDS) -> bool:
+    """True if any address of ``host`` accepts a TCP connection on ``port`` within ``timeout`` (each)."""
+    try:
+        addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError:
+        return False
+    for family, kind, proto, _, address in addresses:
+        with socket.socket(family, kind, proto) as sock:
+            sock.settimeout(timeout)
+            try:
+                sock.connect(address)
+            except OSError:
+                continue
+            return True
+    return False
 
 
 @lru_cache(maxsize=1)
@@ -35,6 +58,11 @@ def postgres_unavailable_reason() -> str | None:
 
     host = str(db.get("HOST") or "localhost")
     port = str(db.get("PORT") or "5432")
+    if not host.startswith("/") and port.isdigit() and not port_accepts_connections(host, int(port)):
+        return (
+            f"PostgreSQL at {host}:{port} is unreachable (nothing accepts connections on that port). "
+            "Start it with `docker compose up -d` from the repository root."
+        )
     try:
         conn = psycopg.connect(
             host=host,
