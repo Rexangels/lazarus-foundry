@@ -429,6 +429,67 @@ ApproverRequiredOut (403) { detail, code: "APPROVER_REQUIRED" }
   4. `VerificationAgent`: Executes `pytest` inside the sandbox runtime (`SANDBOX_MODE=subprocess` or `docker` image `python:3.11-slim`, preview port `8010`) and captures exit code and logs.
 - `FoundryRun`: `id (UUID)`, `project (FK)`, `strategy (FK)`, `agent_stage` (`ENVIRONMENT`, `ARCHITECTURE`, `ENGINEERING`, `VERIFICATION`, `COMPLETE`, `FAILED`), `sandbox_mode`, `before_test_output`, `after_test_output`, `tests_passed (bool)`, `iterations_used (int)`.
 
+#### Foundry: sandbox (`apps/foundry/sandbox.py`, `sandbox_env.py`, `sandbox_process.py`, `junit.py`)
+The sandbox runs installs and tests for code we don't control. Its security matters more than its convenience, so it is safe by default and states its isolation honestly in every result.
+
+- **Factory and policy.** `get_sandbox(project, run_id, *, python_version=None, mode=None) -> Sandbox`.
+  - `mode` defaults to `SANDBOX_MODE`. `python_version` defaults to `SANDBOX_DEFAULT_PYTHON` (3.11) and must be in `SANDBOX_PYTHON_VERSIONS` (3.8–3.13); the EnvironmentAgent picks it.
+  - `run_id` (the `FoundryRun` id) must match `[A-Za-z0-9][A-Za-z0-9_.-]{0,63}`; it names the run directory, the venv volume and the labels.
+  - Subprocess mode for a project that is not `is_golden_demo` raises `UntrustedSandboxError`, unless `SANDBOX_ALLOW_SUBPROCESS_FOR_UNTRUSTED=True` (default False; logged as a warning on every use).
+  - `project.workspace_path` must resolve inside `WORKSPACE_ROOT` (`git_forensics.resolve_workspace_dir(..., require_empty=False)`). `SANDBOX_RUNS_ROOT` must not overlap `WORKSPACE_ROOT` (checked in settings and again at use).
+  - A workspace or runs root inside a OneDrive folder (the `OneDrive*` variables or a `OneDrive`/`OneDrive - <org>` path component) logs a warning recommending a non-synced path.
+- **Docker mode: the only mode for untrusted repositories.** Python `docker` SDK; image `SANDBOX_DOCKER_IMAGE_TEMPLATE` (`python:{version}-slim`), pulled when missing. Every command is a fresh container, removed afterwards.
+  - Hardening on every container: `user="1000:1000"`, `cap_drop=["ALL"]`, `security_opt=["no-new-privileges:true"]`, `read_only=True`, `tmpfs={"/tmp": "rw,nosuid,nodev,size=512m"}`, `mem_limit` = `memswap_limit` = `SANDBOX_MEMORY_LIMIT` (1g, no swap), `nano_cpus` from `SANDBOX_CPUS` (1.0), `pids_limit` = `SANDBOX_PIDS_LIMIT` (256), `privileged=False`, `init=True`, `ipc_mode="private"`, json-file logs capped at 20 MB, and the labels `lazarus.sandbox=true`, `lazarus.foundry_run`, `lazarus.project`, `lazarus.role`.
+  - Mounts are only the workspace (`/workspace`), the run's results directory (`/lazarus-results`) and the per-run named volume `lazarus-venv-<run_id>` (`/opt/lazarus-venv`). The Docker socket is never mounted.
+
+    | Phase | Network | Workspace | Results | Venv volume |
+    | --- | --- | --- | --- | --- |
+    | setup (`chown`, then `venv.create`) | `none` | not mounted | not mounted | rw |
+    | install | `bridge` (`none` with `network=False`) | read-only | not mounted | rw |
+    | execute (`run`, `run_pytest`) | `none` | rw | rw | read-only |
+    | service (`start_service`) | per-run bridge network | rw | rw | read-only |
+
+  - The venv lives in the volume, not the workspace, so it never shows up in the Git diff. A read-only venv during execute stops tests from tampering with the installed packages between runs.
+  - *Root exception:* a new named volume is root-owned and the slim images have no uid 1000. One init container runs `chown 1000:1000 /opt/lazarus-venv` as root with only `CAP_CHOWN`, no network and no workspace mount. Nothing from the repository runs as root.
+  - *Install-phase exposure:* the default bridge can reach the package index but also the host (`host.docker.internal`) and the LAN. Installs are therefore wheels-only (`--only-binary=:all:`) unless the caller passes `allow_source_builds=True`, because a source build runs the package's own code with that network. Requirements files go through `validate_requirements_file`: `-r`/`-c` includes must stay inside the workspace, and index, find-links, trusted-host, editable, `--no-binary`, URL and local-path requirements are refused.
+  - *Preview exception:* Docker cannot publish a port from a `network_mode="none"` container. `start_service` (only on explicit request) uses a per-run bridge network `lazarus-net-<run_id>`, isolated from other containers but with outbound access, and publishes `SANDBOX_PREVIEW_PORT` (8010) on `127.0.0.1` only.
+  - Timeouts: a timer kills the container at the command timeout (`timed_out=True`, exit 137). `container.wait` has a 30 s grace as a backstop.
+  - Cleanup: `close()` removes every container, volume and network labelled with the run id, then the run directory. `sweep_orphaned_sandboxes()` removes everything labelled `lazarus.sandbox=true` plus stale run directories; it runs on the Celery `worker_ready` signal (`apps/foundry/apps.py`), when no run can be active under `--pool=solo`.
+  - Linux hosts: uid 1000 must be able to write the workspace bind mount (Docker Desktop on Windows and macOS maps permissions, so this only matters on native Linux). The results directory is made world-writable inside the private run directory.
+- **Subprocess mode: trusted fixtures only.** A venv in `SANDBOX_RUNS_ROOT/<run_id>/venv`, outside the workspace.
+  - The interpreter is `py -X.Y` on Windows or `pythonX.Y` on PATH elsewhere, else this process's Python. The version actually used is reported (`python_version`) and a mismatch is logged.
+  - Commands run in their own process group (`CREATE_NEW_PROCESS_GROUP` on Windows, a new session on POSIX). On timeout the whole tree is killed (`%SYSTEMROOT%\System32\taskkill.exe /F /T /PID`, or `killpg`).
+  - There is no network, filesystem or process isolation, and every result says `network_isolated=False`. `network=False` only adds pip's `--no-index`. A process that leaves the tree (or a grandchild that outlives a normal exit on Windows) is not tracked.
+- **Secrets never enter the sandbox.** Both modes build the child environment from an allowlist (`sandbox_env`).
+  - Subprocess: only `PATH` (venv first) and, on Windows, `SYSTEMROOT`, `SYSTEMDRIVE`, `WINDIR`, `COMSPEC`, `PATHEXT`, `NUMBER_OF_PROCESSORS`, `PROCESSOR_ARCHITECTURE` and `OS` are inherited. `HOME`/`USERPROFILE`/`APPDATA`/`LOCALAPPDATA`/`TEMP`/`TMP`/`TMPDIR` point into the run directory.
+  - Docker: nothing is inherited. Image-defined variables (`PYTHON_VERSION`, and `GPG_KEY`, the public ID of the CPython release key) remain.
+  - Fixed values: `LANG=C.UTF-8`, `PYTHONHASHSEED=0`, `PYTHONDONTWRITEBYTECODE=1`, `PYTHONNOUSERSITE=1`, `PYTHONIOENCODING=utf-8`, `PIP_DISABLE_PIP_VERSION_CHECK=1`, `PIP_NO_INPUT=1`, `VIRTUAL_ENV`.
+  - `env_overrides` refuses names that look like secrets (`DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `MODEL_API_KEY`, and any `KEY`/`TOKEN`/`SECRET`/`PASSWORD`/`CREDENTIAL`/`AUTH`/`DSN` name part) and the sandbox-managed names (`PATH`, `HOME`, `VIRTUAL_ENV`, ...).
+- **API.** `Sandbox` is a context manager and not thread-safe. Every argv is a list; there is never a shell. `python` and `pip` as argv[0] mean the sandbox venv's.
+  - `create_environment() -> ExecResult` creates the venv and records the actual Python version.
+  - `install(requirements_files=(), *, packages=(), commands=(), network=True, allow_source_builds=False, find_links=None, timeout=None) -> tuple[ExecResult, ...]` stops at the first failure. `find_links` (a local wheelhouse) is subprocess-only, because Docker mounts nothing but the workspace and results.
+  - `run(argv, *, timeout=None, env_overrides=None, on_output=None) -> ExecResult`. `ExecResult` has `argv`, `phase`, `exit_code`, `stdout`/`stderr` (each capped at `SANDBOX_MAX_OUTPUT_BYTES`, 1 MiB, with `*_truncated`), `duration_seconds`, `timed_out`, `mode`, `network_isolated`, `image` and `python_version`. `on_output(stream, line)` gets lines as they arrive, serialized, for SANDBOX_LOG telemetry (the caller batches). It stops at the cap with one `[lazarus] stdout truncated` line, and a failing callback is dropped without failing the command.
+  - `run_pytest(test_ids=None, *, timeout=None, extra_args=(), env_overrides=None, on_output=None) -> TestRunResult` runs `python -m pytest -p no:cacheprovider --junitxml=<results>/junit.xml -q [ids]`. Ids that start with `-` are refused. The result carries the `ExecResult`, the parsed `JUnitReport` (per case: `nodeid`, `outcome` passed/failed/error/skipped, `duration_seconds`, `message` capped at 4,000 characters, `is_collection_error`; totals), `junit_error` when the report is missing or rejected, `collection_error` (a `collection failure` case, or exit 2 with "error during collection"), and `succeeded`.
+  - `start_service(argv, *, host_port=None) -> ServiceHandle` (`url`, `stop() -> ExecResult`); `close()` stops services too.
+  - `info -> SandboxInfo` gives mode, requested and actual Python, image, `network_isolated` (execute phase) and plain-language isolation notes for the FoundryRun log.
+- **JUnit report (`junit.py`).** It is written by sandboxed code, so it is untrusted. It is read only as a regular, non-symlink file directly in the results directory, at most 10 MiB, as UTF-8. Any `<!DOCTYPE`/`<!ENTITY` is rejected before parsing (no entity expansion, no external entities). `defusedxml` is used when installed (it is not a dependency); otherwise `xml.etree` parses the checked bytes. Both pytest families parse: xunit2 (pytest 5.1+ through 9, `<testsuites>`) and xunit1/pre-5.1 (`<testsuite>` root, `file` attribute). Node ids are rebuilt from `classname` using the workspace's files (`tests.test_x.TestA` → `tests/test_x.py::TestA::name`). Totals are counted from the cases, and a test that fails and then errors in teardown counts as failed.
+- **Observed PayPulse results** (`tests/test_foundry_sandbox_paypulse.py`; real runs on Windows):
+
+  | Mode | Python | Dependencies | Result |
+  | --- | --- | --- | --- |
+  | subprocess, offline | 3.13.5 | pytest 9.2.0 from a local wheelhouse | 1 failed (`test_dispatch_retries_with_exponential_backoff`), 15 passed |
+  | subprocess, PyPI | 3.13.5 | `requirements.txt` (pytest 6.2.4, requests 2.25.1) | same; pytest 6.2.4 imports but emits ~393 `ast.Str`/`ast.NameConstant` DeprecationWarnings (removed in Python 3.14) |
+  | subprocess, PyPI | 3.10.0 | `requirements.txt` | same, no warnings |
+  | docker | 3.9, 3.11 | `requirements.txt` | written, not yet run (no Docker daemon was reachable) |
+
+  The EnvironmentAgent can keep PayPulse's pins on Python ≤ 3.13. They will break on 3.14.
+- **Deliberate deviations and judgment calls.**
+  - `python_version` is optional and defaults to `SANDBOX_DEFAULT_PYTHON`. `get_sandbox` also takes `docker_client_factory` so tests can pass an SDK test double.
+  - Wheels-only installs by default, and the requirements-file allowlist, are additions to the task text, made because the install phase has network.
+  - `find_links` is not available in Docker mode, so the "workspace and results only" mount rule holds.
+  - Subprocess mode cannot enforce that a preview binds 127.0.0.1. It only passes `HOST=127.0.0.1`, which is one more reason the mode is trusted-only.
+  - Image tags are mutable, and one `{version}` template cannot hold a digest per version. Reproducible pulls would need images mirrored to a registry you control; this is not done.
+
 ### 6. `apps.rebirth`
 - `RebirthArtifact`: `id (UUID)`, `project (OneToOneField)`, `foundry_run (FK)`, `unified_diff_patch (TextField)`, `pr_title`, `pr_body_markdown`, `exported_kiro_specs_path`, `continuity_memory (JSONField)`, `preview_url (CharField, default="http://localhost:8010")`, `created_at`.
 

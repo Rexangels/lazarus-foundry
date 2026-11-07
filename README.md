@@ -6,7 +6,7 @@ Lazarus Foundry is an AI software revival foundry built for the Kiroween Resurre
 
 - Python 3.11+
 - Node.js 20+
-- Docker Desktop (only used for PostgreSQL and Redis)
+- Docker Desktop (PostgreSQL and Redis, and the Foundry's Docker sandbox)
 - Git
 
 ## Local setup (Windows hybrid)
@@ -83,6 +83,43 @@ cd backend; .\.venv\Scripts\Activate.ps1; pip install -r requirements-dev.txt; p
 ```
 
 Tests that need the database run against the real PostgreSQL from `DATABASE_URL` (pytest-django creates a `test_lazarus` database on that server). If PostgreSQL is not running, those tests are skipped with the reason shown in the summary; all other tests still run.
+
+Test markers: `slow` (builds Git repositories or runs real sandboxes; the save hook runs `-m "not slow"`), `network` (installs from PyPI; skipped when offline) and `docker` (needs the Docker daemon; skipped when it is not reachable). The offline sandbox test needs a modern pytest wheel in `.lazarus_data/wheelhouse`; it is skipped until you fill it once:
+
+```powershell
+cd backend; .\.venv\Scripts\python.exe -m pip download pytest --only-binary=:all: -d ..\.lazarus_data\wheelhouse
+```
+
+## Docker sandbox (Foundry)
+
+The Foundry runs a repository's dependency installs and tests in a sandbox (`apps/foundry/sandbox.py`; the security model is in `.kiro/specs/core-resurrection-engine/design.md`, "Foundry: sandbox").
+
+- `SANDBOX_MODE=docker` is the only mode for repositories you did not write. Each command runs in a fresh `python:<version>-slim` container as uid 1000, with all capabilities dropped, a read-only root filesystem, memory, CPU and process limits, and no network while repository code runs.
+- `SANDBOX_MODE=subprocess` (the default) runs commands directly on your machine with **no isolation**. It is allowed only for the PayPulse demo. `SANDBOX_ALLOW_SUBPROCESS_FOR_UNTRUSTED=True` lifts that restriction: leave it `False` unless the machine is disposable, because the repository's code would run with your user's access to your files and network.
+
+### Setting up Docker Desktop
+
+1. Install Docker Desktop with the WSL 2 backend and start it. `docker version` in a new PowerShell window must show both a Client and a Server section.
+2. File sharing: the sandbox bind-mounts the workspace (`WORKSPACE_ROOT/<project>`) and the run's results directory (`SANDBOX_RUNS_ROOT/<run>`). With the WSL 2 backend, Windows drives are shared automatically. With the Hyper-V backend, add the drive or folder under Settings > Resources > File sharing. A mount that is not shared fails with an error that names this setting.
+3. Pull the images once to save time on the first run: `docker pull python:3.11-slim` (and any other version in `SANDBOX_PYTHON_VERSIONS` you expect to use).
+4. Set `SANDBOX_MODE=docker` in `.env` and restart Daphne and the Celery worker. On start, the worker removes sandbox containers, volumes and run directories left over from a crash (everything labelled `lazarus.sandbox=true`).
+
+### Keep workspaces out of OneDrive
+
+The default `WORKSPACE_ROOT` and `SANDBOX_RUNS_ROOT` are under the repository's `.lazarus_data/`. If the repository is inside OneDrive (for example under `Desktop` or `Documents` with folder backup turned on), sync can lock or rewrite files while tests run, and Docker Desktop bind mounts of synced folders are slow and can fail. The sandbox logs a warning when it detects this. Point both at a non-synced folder in `.env`:
+
+```dotenv
+WORKSPACE_ROOT=C:/lazarus-data/workspaces
+SANDBOX_RUNS_ROOT=C:/lazarus-data/sandbox_runs
+```
+
+### Running the Docker tests
+
+```powershell
+cd backend; .\.venv\Scripts\Activate.ps1; python -m pytest -m docker -rA
+```
+
+They need the daemon and internet access (Docker Hub and PyPI). They run PayPulse in `python:3.9-slim` and `python:3.11-slim` and check that the execute phase has no network, runs as uid 1000, has a read-only root filesystem, sees none of the backend's secrets, and leaves no labelled containers or volumes behind. Without a reachable daemon they are skipped, and the skip reason says why.
 
 ## Stopping
 
