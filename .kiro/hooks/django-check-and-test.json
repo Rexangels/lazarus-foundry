@@ -1,0 +1,17 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "django-system-and-forensic-check",
+      "description": "Cross-platform Windows/PowerShell-safe check that runs manage.py check and pytest if backend/manage.py exists",
+      "trigger": "PostFileSave",
+      "matcher": "^backend[\\\\/].*\\.py$",
+      "action": {
+        "type": "command",
+        "command": "python -c \"import os, subprocess, sys; sys.exit(subprocess.call([sys.executable, 'manage.py', 'check'], cwd='backend') or subprocess.call([sys.executable, '-m', 'pytest', '-q', '--tb=short'], cwd='backend')) if os.path.exists('backend/manage.py') else print('Django skeleton not initialized yet, skipping check.')\""
+      },
+      "timeout": 60,
+      "enabled": true
+    }
+  ]
+}

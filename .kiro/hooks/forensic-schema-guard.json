@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "sync-ninja-schemas-to-typescript",
+      "description": "Ensures frontend TypeScript types in frontend/src/lib/types.ts stay synced with Django Ninja schemas",
+      "trigger": "PostFileSave",
+      "matcher": "^backend/apps/.*/schemas\\.py$",
+      "action": {
+        "type": "agent",
+        "prompt": "A Django Ninja schema file was just modified. Verify that the corresponding TypeScript interfaces in `frontend/src/lib/types.ts` match the updated Pydantic fields, including EvidenceCitation and epistemic_status enums."
+      },
+      "enabled": true
+    }
+  ]
+}

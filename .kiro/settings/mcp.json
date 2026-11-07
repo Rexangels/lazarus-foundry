@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "lazarus-forensics": {
+      "command": "python",
+      "args": ["backend/mcp_server/lazarus_mcp.py"],
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "config.settings",
+        "PYTHONPATH": "backend"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "inspect_dead_branches",
+        "query_project_genome",
+        "detect_doc_code_conflicts",
+        "export_kiro_revival_spec"
+      ]
+    }
+  }
+}

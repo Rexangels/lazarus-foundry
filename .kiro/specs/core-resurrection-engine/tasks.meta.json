@@ -1,0 +1,41 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Configure `docker-compose.yml` to run ONLY `db` (`pgvector/pgvector:pg16` on `localhost:5432`) and `redis` (`redis:7-alpine` on `localhost:6379`) for local Windows development. Create `.env.example`, update `.gitignore` (tracking `.kiro/` and ignoring `.lazarus_data/`), and document the Windows startup commands (`celery -A config worker -l info --pool=solo`) in `README.md`.": [
+      {
+        "executionId": "b1620cbd-009f-421a-b536-ae28b6e648e1",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794000676719
+      },
+      {
+        "executionId": "b1620cbd-009f-421a-b536-ae28b6e648e1",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794000844543
+      }
+    ],
+    "1.2 Initialize Django 5.1 project in `backend/` with `django-ninja`, `channels`, `channels-redis`, `celery`, `pgvector`, `GitPython`, `tree-sitter>=0.23.0`, `tree-sitter-language-pack>=1.8.0`, `tree-sitter-python>=0.23.0`, `openai`, and `docker`.": [
+      {
+        "executionId": "b1620cbd-009f-421a-b536-ae28b6e648e1",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794000851321
+      },
+      {
+        "executionId": "b1620cbd-009f-421a-b536-ae28b6e648e1",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794009612070
+      }
+    ],
+    "1.3 Create all 7 Django apps (`projects`, `ingestion`, `genome`, `revival`, `foundry`, `rebirth`, `telemetry`). Add `0001_enable_pgvector.py` with `VectorExtension()` in `apps.ingestion`, then implement all ORM models and run `makemigrations` + `migrate`.": [
+      {
+        "executionId": "b1620cbd-009f-421a-b536-ae28b6e648e1",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794009618561
+      },
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794010105015
+      }
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+# Lazarus Foundry backend runtime dependencies.
+# Bounds were verified to resolve together on CPython 3.13 (Windows) and 3.11+.
+
+# Web framework, API, ASGI/WebSockets
+Django>=5.2,<6.0
+django-ninja>=1.4,<2.0
+channels>=4.2,<5.0
+channels-redis>=4.2,<5.0
+daphne>=4.1,<5.0
+
+# Task queue (Redis broker/result backend)
+celery[redis]>=5.4,<6.0
+redis>=5.2,<7.0
+
+# PostgreSQL 16 + pgvector
+psycopg[binary]>=3.2,<4.0
+pgvector>=0.4,<0.6
+
+# Environment / .env loading (also parses DATABASE_URL)
+django-environ>=0.11,<1.0
+
+# Code and Git forensics
+GitPython>=3.1.43,<4.0
+tree-sitter>=0.23.0,<0.27
+tree-sitter-language-pack>=1.8.0,<2.0
+tree-sitter-python>=0.23.0,<0.26
+
+# Reasoning model client (OpenAI-compatible endpoint) and Docker sandbox
+openai>=1.50,<4.0
+docker>=7.1,<8.0
