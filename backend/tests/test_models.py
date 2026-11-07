@@ -69,6 +69,9 @@ FIELD_SPECS: list[tuple[type[models.Model], str, type[models.Field], bool]] = [
     (Project, "workspace_path", models.CharField, False),
     (Project, "status", models.CharField, False),
     (Project, "default_branch", models.CharField, False),
+    (Project, "status_detail", models.TextField, False),
+    (Project, "ingested_at", models.DateTimeField, True),
+    (Project, "ingestion_summary", models.JSONField, False),
     (Project, "created_at", models.DateTimeField, False),
     (Project, "updated_at", models.DateTimeField, False),
     (BranchSnapshot, "project", models.ForeignKey, False),
@@ -223,6 +226,7 @@ def test_relations(
             [
                 "DORMANT",
                 "INGESTING",
+                "SYNTHESIZING_GENOME",
                 "AUTOPSY_COMPLETE",
                 "STRATEGY_APPROVED",
                 "FOUNDRY_RUNNING",

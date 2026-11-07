@@ -13,21 +13,29 @@ No `IntentNode` may be saved without at least one linked `EvidenceCitation` cont
 - `snippet` (`str`)
 - `weight` (`float`)
 
-## 2. Deterministic Confidence Score Formula $C(f) \in [0.0, 1.0]$
-Implemented in `backend/apps/genome/scoring.py`:
-$$C(f) = \sigma \left( \sum_{i=1}^{N} w_i \cdot s(f, e_i) \cdot e^{-\lambda \Delta t_i} - \gamma \cdot \text{Conflict}(f) \right)$$
-Where:
-- $\sigma(z) = \frac{1}{1 + e^{-z}}$ is the standard logistic sigmoid function mapped to $[0.0, 1.0]$.
-- Authority weights $w_i$: `AST_IMPLEMENTATION = 1.2`, `UNMERGED_BRANCH_COMMIT = 0.9`, `ISSUE_SPEC = 0.6`, `TODO_COMMENT = 0.45`, `README_CLAIM = 0.35`.
-- $s(f, e_i) \in [0.0, 1.0]$: Relevance score (`1.0` for direct symbol/AST match, `0.8` for branch diff match, `0.6` for text mention).
-- $\lambda = 0.0015$ (temporal decay constant) and $\Delta t_i \ge 0$ is commit age in days relative to the repo's latest commit (`0` for uncommitted docs).
-- $\gamma = 0.40$, and $\text{Conflict}(f) = 1.0$ if a `ConflictRecord` exists for feature $f$ (else `0.0`).
+## 2. Deterministic Confidence Score Formula $C(f) \in (0.0, 1.0)$
+Implemented in `backend/apps/genome/scoring.py` (pure; every constant lives in `ScoringParameters` / `DEFAULT_PARAMETERS`):
 
-## 3. Epistemic Status Thresholds
-- `CONFLICTED`: If $\text{Conflict}(f) == 1.0$.
-- `KNOWN`: $C(f) \ge 0.75$ and no conflict.
-- `INFERRED`: $0.45 \le C(f) < 0.75$.
-- `MISSING_CONTEXT`: $C(f) < 0.45$.
+$$\text{term}_i = w_{t(i)} \cdot s(f, e_i) \cdot e^{-\lambda \Delta t_i}$$
+$$A_t = \min\Big(\kappa \cdot w_t,\ \sum_{k=1}^{n_t} \rho^{\,k-1} \cdot \text{term}_{t,(k)}\Big) \quad \text{(terms of source type } t \text{, sorted largest first)}$$
+$$z = \sum_{t} A_t - \beta_0 - \gamma \cdot \text{Conflict}(f), \qquad C(f) = \text{round}\big(\sigma(z), 4\big)$$
+Where:
+- $\sigma(z) = \frac{1}{1 + e^{-z}}$ is the standard logistic sigmoid.
+- Authority weights $w_t$: `AST_IMPLEMENTATION = 1.2`, `UNMERGED_BRANCH_COMMIT = 0.9`, `ISSUE_SPEC = 0.6`, `TODO_COMMENT = 0.45`, `README_CLAIM = 0.35`.
+- $s(f, e_i) \in [0.0, 1.0]$: match strength, supplied by the caller that matched the evidence to the feature (scoring never guesses it). Named constants: `MATCH_DIRECT_SYMBOL = 1.0` (the feature's own symbol / AST node), `MATCH_BRANCH_DIFF = 0.8` (the feature's code in an unmerged branch diff), `MATCH_TEXT_MENTION = 0.6` (prose or a comment names the feature), `MATCH_STUB = 0.3` (a symbol whose body only raises `NotImplementedError`: name and interface, no behavior). A stub signal may not exceed `MATCH_STUB`.
+- $\lambda = 0.0015$ per day. $\Delta t_i \ge 0$ is the age, relative to the repository's latest commit, of the **revision at which the evidence was observed**. Evidence observed at the default branch's HEAD (current code, current README) has $\Delta t = 0$ however old the file is, because it is still there now. Evidence found only on an unmerged branch uses that branch tip's dormancy (PayPulse `feat/webhook-retry-engine`: 543 days, decay $e^{-0.8145} = 0.4429$). Decay penalizes stale places, not old-but-current code.
+- Per-type diminishing returns: within one source type the strongest item counts fully and the $k$-th strongest counts $\rho^{k-1}$ with $\rho = 0.5$; the type's total is capped at $\kappa \cdot w_t$ with $\kappa = 1.75$ (three full-strength items saturate it). Many weak items of one kind cannot add up to strong evidence, and a module's symbol count cannot inflate the score.
+- $\beta_0 = 0.50$ is the prior: an unevidenced feature is doubtful by default, so zero evidence gives $C = \sigma(-0.5) = 0.3775$.
+- $\gamma = 0.40$, and $\text{Conflict}(f) = 1.0$ if a `ConflictRecord` exists for feature $f$ (else `0.0`). $C(f)$ is still computed for conflicted features and is always lower than without the conflict.
+- Bounds: with the default parameters $z \in [-0.9,\ 5.625]$, so $C(f) \in [0.2891, 0.9964]$, inside the database's $[0, 1]$ check. Classification compares the rounded, stored value.
+
+## 3. Epistemic Status Rules
+Checked in order (`StatusReason` records which rule decided):
+- `CONFLICTED`: $\text{Conflict}(f) = 1.0$, regardless of everything else.
+- `KNOWN`: $C(f) \ge 0.75$ **and** at least one `AST_IMPLEMENTATION` item observed on the default branch that is neither a stub nor a test. Otherwise a score $\ge 0.75$ falls through to the `INFERRED` rule.
+- `INFERRED`: $C(f) \ge 0.45$ **and** implementation-bearing evidence: any `AST_IMPLEMENTATION` item (stubs and tests included), any `UNMERGED_BRANCH_COMMIT`, or a detailed spec (an `ISSUE_SPEC` with $s \ge 1.0$, i.e. it names the feature's concrete symbols or interfaces).
+- `MISSING_CONTEXT`: everything else. A feature evidenced only by `TODO_COMMENT` / `README_CLAIM` items (or only by spec mentions) is `MISSING_CONTEXT` regardless of count, even when its $C(f)$ exceeds 0.45.
+- Section 1 still applies: a persisted `IntentNode` is scored with `score_intent_node`, which refuses an empty evidence list.
 
 ## 4. Bounded Revival Strategy Feasibility Score Formula $\text{Score}(S_k) \in [0.0, 100.0]$
 Implemented in `backend/apps/revival/scoring.py`:

@@ -70,6 +70,11 @@ def test_database_is_postgresql_not_sqlite() -> None:
     assert settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
 
 
+def test_database_connect_has_timeout() -> None:
+    timeout = settings.DATABASES["default"]["OPTIONS"]["connect_timeout"]
+    assert 0 < int(timeout) <= 30
+
+
 def test_redis_backs_celery_and_channels() -> None:
     assert settings.CELERY_BROKER_URL == settings.REDIS_URL
     assert settings.CELERY_RESULT_BACKEND == settings.REDIS_URL

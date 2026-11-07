@@ -1,6 +1,23 @@
 from django.contrib import admin
 
-from apps.genome.models import ConflictRecord, EvidenceCitation, IntentNode
+from apps.genome.models import ConflictRecord, EvidenceCitation, GenomeSynthesis, IntentNode
+
+
+@admin.register(GenomeSynthesis)
+class GenomeSynthesisAdmin(admin.ModelAdmin):
+    list_display: tuple[str, ...] = (
+        "project",
+        "mode",
+        "model_id",
+        "node_count",
+        "conflict_count",
+        "catalog_size",
+        "started_at",
+        "finished_at",
+    )
+    list_filter: tuple[str, ...] = ("mode",)
+    list_select_related: tuple[str, ...] = ("project",)
+    readonly_fields: tuple[str, ...] = ("id", "created_at", "input_digest", "validation_report", "raw_model_response")
 
 
 class EvidenceCitationInline(admin.TabularInline):

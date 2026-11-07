@@ -7,6 +7,8 @@ from django.db import models
 class ProjectStatus(models.TextChoices):
     DORMANT = "DORMANT", "Dormant"
     INGESTING = "INGESTING", "Ingesting"
+    # Ingestion is committed and the Project Genome is being synthesized (apps.genome.tasks).
+    SYNTHESIZING_GENOME = "SYNTHESIZING_GENOME", "Synthesizing genome"
     AUTOPSY_COMPLETE = "AUTOPSY_COMPLETE", "Autopsy complete"
     STRATEGY_APPROVED = "STRATEGY_APPROVED", "Strategy approved"
     FOUNDRY_RUNNING = "FOUNDRY_RUNNING", "Foundry running"
@@ -26,6 +28,14 @@ class Project(models.Model):
         max_length=32, choices=ProjectStatus.choices, default=ProjectStatus.DORMANT
     )
     default_branch = models.CharField(max_length=255, default="main")
+    # User-facing explanation of the current status (e.g. why ingestion FAILED).
+    # Never holds tracebacks, Git stderr or server paths.
+    status_detail = models.TextField(blank=True)
+    # When the last successful ingestion was persisted.
+    ingested_at = models.DateTimeField(null=True, blank=True)
+    # Counts from the last successful ingestion (parse outcomes per scope,
+    # artifacts per type, branches); see apps.ingestion.pipeline.
+    ingestion_summary = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

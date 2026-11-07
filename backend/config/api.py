@@ -8,6 +8,9 @@ from typing import Literal
 from django.http import HttpRequest
 from ninja import NinjaAPI, Schema
 
+from apps.genome.api import router as genome_router
+from apps.projects.api import router as projects_router
+
 API_VERSION: str = "0.1.0"
 SERVICE_NAME: str = "lazarus-foundry"
 
@@ -34,3 +37,8 @@ def health(request: HttpRequest) -> HealthResponse:
         version=API_VERSION,
         timestamp=datetime.now(timezone.utc),
     )
+
+
+api.add_router("/projects/", projects_router)
+# Same prefix: /api/projects/{project_id}/genome lives in the genome app.
+api.add_router("/projects/", genome_router)

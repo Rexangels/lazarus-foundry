@@ -4,12 +4,21 @@ Tests that need the database run against the real PostgreSQL configured by
 ``DATABASE_URL`` (pytest-django creates ``test_<NAME>`` on that server). When
 that server is unreachable, those tests are skipped with the reason below;
 tests that do not touch the database always run.
+
+``paypulse_repo`` builds the "Patient Zero" Git fixture once per session.
 """
 from functools import lru_cache
+from typing import Any
 
 import psycopg
 import pytest
 from django.conf import settings
+
+from tests.fixtures.build_paypulse_fixture import (
+    PAYPULSE_FIXTURE_NAME,
+    FixtureBuildResult,
+    build_paypulse_fixture,
+)
 
 # Fixtures whose presence (directly or transitively) means a test needs the DB.
 DB_FIXTURES: frozenset[str] = frozenset({"db", "transactional_db", "django_db_setup"})
@@ -60,3 +69,22 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     skip = pytest.mark.skip(reason=reason)
     for item in db_items:
         item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _no_model_api_key(settings: Any) -> None:
+    """Tests never reach the network: a key configured in .env must not enable the model path.
+
+    Model-path tests pass an explicit ``api_key`` and a fake client to ``GenomeReconcilerAgent``.
+    """
+    settings.MODEL_API_KEY = ""
+
+
+@pytest.fixture(scope="session")
+def paypulse_repo(tmp_path_factory: pytest.TempPathFactory) -> FixtureBuildResult:
+    """The PayPulse dead repo, built once per session into a pytest temp dir.
+
+    Shared by every test that requests it: treat it as read-only (no checkouts,
+    commits or work-tree edits). Build a private copy for anything that mutates.
+    """
+    return build_paypulse_fixture(tmp_path_factory.mktemp("paypulse_session") / PAYPULSE_FIXTURE_NAME)

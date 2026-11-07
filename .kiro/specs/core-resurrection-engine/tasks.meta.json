@@ -35,6 +35,147 @@
         "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
         "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
         "timestamp": 1794010105015
+      },
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794010960668
+      }
+    ],
+    "1.4 Configure Django Channels WebSocket routing at `ws/projects/<uuid:project_id>/telemetry/` and `broadcast_telemetry(project_id, event_type, payload)`.": [
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794010966671
+      },
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794011461458
+      }
+    ],
+    "1. Scaffold Monorepo, Local Windows Infrastructure & 7-App Django Core": [
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794011461974
+      }
+    ],
+    "2.1 Write `backend/tests/fixtures/build_paypulse_fixture.py` that programmatically initializes a real Git repository at `/tmp/lazarus_fixtures/paypulse_dead_repo` (avoiding nested `.git` folders in our parent repo).": [
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794011473069
+      },
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794012406142
+      }
+    ],
+    "2.2 Have the script create realistic commits and forensic contradictions:": [
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794012413031
+      },
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794013248546
+      }
+    ],
+    "2. Build the \"Patient Zero\" (`paypulse_dead_repo`) Git Fixture Generator": [
+      {
+        "executionId": "b96ebe80-bcbf-472f-8e98-d5990f4ab492",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794013249128
+      }
+    ],
+    "3.1 Build `GitForensicService` (`GitPython`) to inspect branches, detect unmerged branches, compute ahead/behind counts, and extract diffs against `main`.": [
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794013732096
+      },
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794015471302
+      }
+    ],
+    "3.2 Build `ASTParserService` (`tree-sitter` + `tree-sitter-language-pack`) to extract classes, functions, imports, and `TODO`/`FIXME` comments with exact `line_start`, `line_end`, and `snippet`.": [
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794015478550
+      },
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794017026811
+      }
+    ],
+    "3.3 Wire up `ingest_repository_task(project_id)` to populate `BranchSnapshot` and `ArtifactRecord` and emit WebSocket telemetry.": [
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794017028510
+      },
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794018608441
+      }
+    ],
+    "3. Implement System 1: Artifact Ingestion Engine (`apps.ingestion`)": [
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794018609088
+      }
+    ],
+    "4.1 Implement the parameterized sigmoid confidence formula $C(f)$ and epistemic status classifier in `apps/genome/scoring.py`.": [
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794018609903
+      },
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794019406056
+      }
+    ],
+    "4.2 Build `GenomeReconcilerAgent` in `apps/genome/agents.py` using the `openai` SDK with `settings.MODEL_BASE_URL`, `settings.MODEL_API_KEY`, and `settings.MODEL_ID` (with deterministic fallback synthesis if API key is absent during offline unit tests) to output `IntentNode`, `EvidenceCitation` (`line_start`, `line_end`, `snippet`), and `ConflictRecord` objects.": [
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794019407909
+      },
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794023196248
+      }
+    ],
+    "4.3 Expose `GET /api/projects/{project_id}/genome`.": [
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794023196994
+      },
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794024369821
+      }
+    ],
+    "4. Implement System 2: Project Genome & Contradiction Reconciler (`apps.genome`)": [
+      {
+        "executionId": "bef91d52-6fb4-49be-acb5-016107d23999",
+        "chatSessionId": "sess_eef8db26-21ff-4d6d-ba7f-9e4cacece49f",
+        "timestamp": 1794024370556
       }
     ]
   }

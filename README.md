@@ -74,6 +74,8 @@ The "Patient Zero" demo repository (`paypulse_dead_repo`) is generated on demand
 cd backend; .\.venv\Scripts\Activate.ps1; python manage.py seed_paypulse_fixture
 ```
 
+It builds `main` plus the unmerged `feat/webhook-retry-engine` branch at `FIXTURE_ROOT/paypulse_dead_repo` (default `.lazarus_data/fixtures/paypulse_dead_repo`). Pass `--force` to rebuild an existing fixture or `--destination <path>` to build elsewhere. The command does not need PostgreSQL.
+
 ## Running tests
 
 ```powershell

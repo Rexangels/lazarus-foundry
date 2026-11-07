@@ -37,10 +37,59 @@ class EvidenceSourceType(models.TextChoices):
     README_CLAIM = "README_CLAIM", "README claim"
 
 
+class SynthesisMode(models.TextChoices):
+    DETERMINISTIC = "DETERMINISTIC", "Deterministic (no model configured)"
+    MODEL = "MODEL", "Model-refined"
+    MODEL_FALLBACK = "MODEL_FALLBACK", "Deterministic after a model failure"
+
+
+class GenomeSynthesis(models.Model):
+    """Provenance of one genome synthesis run (apps.genome.agents / services).
+
+    Never stores the API key or request headers: ``input_digest`` is the
+    SHA-256 of the request payload (model, messages, response format) and
+    ``raw_model_response`` the model's reply text, capped.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(
+        "projects.Project", on_delete=models.CASCADE, related_name="genome_syntheses"
+    )
+    mode = models.CharField(max_length=32, choices=SynthesisMode.choices)
+    model_id = models.CharField(max_length=255, blank=True)
+    started_at = models.DateTimeField()
+    finished_at = models.DateTimeField()
+    catalog_size = models.PositiveIntegerField(default=0)
+    input_digest = models.CharField(max_length=64)
+    # Dropped citation ids, rejected features, vital-status overrides, fallback reason.
+    validation_report = models.JSONField(default=dict, blank=True)
+    raw_model_response = models.TextField(blank=True)
+    node_count = models.PositiveIntegerField(default=0)
+    conflict_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+        verbose_name_plural = "genome syntheses"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(mode__in=SynthesisMode.values),
+                name="genome_genomesynthesis_mode_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.mode} genome for {self.project_id} at {self.started_at:%Y-%m-%d %H:%M}"
+
+
 class IntentNode(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(
         "projects.Project", on_delete=models.CASCADE, related_name="intent_nodes"
+    )
+    # The run that produced this node; SET_NULL keeps nodes if old provenance is purged.
+    synthesis = models.ForeignKey(
+        GenomeSynthesis, on_delete=models.SET_NULL, null=True, blank=True, related_name="intent_nodes"
     )
     title = models.CharField(max_length=255)
     category = models.CharField(max_length=32, choices=IntentCategory.choices)
@@ -50,6 +99,8 @@ class IntentNode(models.Model):
     reconstructed_intent = models.TextField()
     actual_implementation_state = models.TextField()
     graph_position = models.JSONField(default=dict, blank=True)
+    # FeatureScore.as_dict() plus the vital-status rule and how each citation entered C(f).
+    score_breakdown = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

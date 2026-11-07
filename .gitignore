@@ -230,3 +230,7 @@ lazarus_fixtures/
 
 # Local runtime data (Windows hybrid dev setup)
 .lazarus_data/
+
+# The Python template's `lib/` rule above would also hide the frontend's shared
+# TypeScript modules (types.ts, api.ts, ws.ts); keep them tracked.
+!frontend/src/lib/
