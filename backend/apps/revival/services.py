@@ -64,10 +64,10 @@ Approval (``approve_strategy``, called by ``POST .../strategies/{id}/approve``)
 
 ``on_strategy_approved(strategy, foundry_run)`` runs after that transaction
 commits. It is the single place that decides what follows an approval, as
-``apps.ingestion.tasks.on_ingestion_complete`` is for ingestion. Today it
-logs and emits ``STRATEGY_APPROVED``; the ``FoundryRun`` row in
-``ENVIRONMENT`` is the queryable "approved, Foundry queued" state. Task 6.2
-makes it enqueue the Foundry pipeline for that run.
+``apps.ingestion.tasks.on_ingestion_complete`` is for ingestion. It emits
+``STRATEGY_APPROVED`` and enqueues ``apps.foundry.tasks.run_foundry_task``
+for that run (``queue_foundry_run``); the ``FoundryRun`` row in
+``ENVIRONMENT`` is the queryable "approved, Foundry queued" state.
 """
 from __future__ import annotations
 
@@ -514,18 +514,37 @@ def approved_payload(strategy: RevivalStrategy, foundry_run: FoundryRun) -> dict
     }
 
 
+def queue_foundry_run(foundry_run_id: UUID) -> None:
+    """Send ``run_foundry_task``; raises whatever the broker client raises."""
+    from apps.foundry.tasks import run_foundry_task  # the foundry app imports revival; import late
+
+    run_foundry_task.delay(str(foundry_run_id))
+
+
 def on_strategy_approved(strategy: RevivalStrategy, foundry_run: FoundryRun, *, emit: Emit | None = None) -> None:
     """Decide what follows a committed approval (see the module docstring). Never raises.
 
-    Today: log and emit ``STRATEGY_APPROVED``. Task 6.2 enqueues the Foundry pipeline for ``foundry_run`` here.
+    Emits ``STRATEGY_APPROVED``, then enqueues the Foundry pipeline for ``foundry_run``. If the broker
+    is down the run stays queued in ``ENVIRONMENT`` and an ``ERROR`` (``stage: "FOUNDRY"``) is emitted;
+    it is never run inline, because a Foundry run takes minutes and this runs after the API commit.
     """
+    emit = emit or telemetry_emitter(strategy.project_id)
     try:
         logger.info(
             "Strategy %s (%s) of project %s approved; FoundryRun %s is queued in %s.",
             strategy.pk, strategy.strategy_type, strategy.project_id, foundry_run.pk, foundry_run.agent_stage,
         )
-        (emit or telemetry_emitter(strategy.project_id))(
-            TelemetryEventType.STRATEGY_APPROVED, approved_payload(strategy, foundry_run)
-        )
+        emit(TelemetryEventType.STRATEGY_APPROVED, approved_payload(strategy, foundry_run))
     except Exception:
         logger.exception("Announcing the approval of strategy %s failed.", strategy.pk)
+    try:
+        queue_foundry_run(foundry_run.pk)
+    except Exception:
+        logger.exception("Could not enqueue FoundryRun %s.", foundry_run.pk)
+        try:
+            emit(TelemetryEventType.ERROR, {
+                "stage": "FOUNDRY", "foundry_run_id": str(foundry_run.pk),
+                "detail": "The Foundry run could not be queued (is Redis running?); it is still waiting to start.",
+            })
+        except Exception:
+            logger.exception("Announcing the enqueue failure of FoundryRun %s failed.", foundry_run.pk)

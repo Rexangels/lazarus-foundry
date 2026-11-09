@@ -35,6 +35,10 @@ class FoundryRun(models.Model):
     after_test_output = models.TextField(blank=True)
     tests_passed = models.BooleanField(default=False)
     iterations_used = models.PositiveSmallIntegerField(default=0)
+    # The agents' reports (apps.foundry.agents.FoundryResult.report): environment audit and installs,
+    # the architecture blueprint, engineering item results, every verification attempt and repair,
+    # the revival branch, changed files and, on failure, {stage, code, detail}.
+    report = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -234,6 +234,28 @@ if (
     )
 
 # ---------------------------------------------------------------------------
+# Foundry pipeline (apps/foundry/agents.py, services.py, tasks.py)
+# ---------------------------------------------------------------------------
+# Self-healing cycles after a failed verification (repair, then re-run pytest). The spec allows up to 3.
+FOUNDRY_MAX_HEALING_ITERATIONS: int = env.int("FOUNDRY_MAX_HEALING_ITERATIONS", default=3)
+# Whether the EnvironmentAgent may install from the package index (the sandbox install phase).
+FOUNDRY_INSTALL_NETWORK: bool = env.bool("FOUNDRY_INSTALL_NETWORK", default=True)
+# Optional local wheel directory tried after the network (subprocess mode only), e.g. ./.lazarus_data/wheelhouse.
+_FOUNDRY_WHEELHOUSE: str = env.str("FOUNDRY_WHEELHOUSE", default="").strip()
+FOUNDRY_WHEELHOUSE: Path | None = resolve_repo_path(_FOUNDRY_WHEELHOUSE) if _FOUNDRY_WHEELHOUSE else None
+# Celery limits for run_foundry_task (not enforced by the Windows --pool=solo worker; sandbox timeouts still are).
+FOUNDRY_TASK_SOFT_TIME_LIMIT_SECONDS: int = env.int("FOUNDRY_TASK_SOFT_TIME_LIMIT_SECONDS", default=3600)
+FOUNDRY_TASK_TIME_LIMIT_SECONDS: int = env.int("FOUNDRY_TASK_TIME_LIMIT_SECONDS", default=3660)
+if not 0 <= FOUNDRY_MAX_HEALING_ITERATIONS <= 3:
+    raise ImproperlyConfigured(
+        f"FOUNDRY_MAX_HEALING_ITERATIONS must be between 0 and 3, got {FOUNDRY_MAX_HEALING_ITERATIONS}."
+    )
+if not 0 < FOUNDRY_TASK_SOFT_TIME_LIMIT_SECONDS < FOUNDRY_TASK_TIME_LIMIT_SECONDS:
+    raise ImproperlyConfigured(
+        "FOUNDRY_TASK_SOFT_TIME_LIMIT_SECONDS must be positive and below FOUNDRY_TASK_TIME_LIMIT_SECONDS."
+    )
+
+# ---------------------------------------------------------------------------
 # Ingestion: Git forensics (apps/ingestion/git_forensics.py)
 # ---------------------------------------------------------------------------
 # Hosts users may submit repository URLs for (https:// only, exact host match).

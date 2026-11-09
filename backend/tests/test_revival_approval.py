@@ -34,7 +34,15 @@ MAX_STRATEGY_QUERIES: int = 5
 
 
 @pytest.fixture
-def events(monkeypatch: pytest.MonkeyPatch) -> Events:
+def queued(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Foundry runs sent to the broker (recorded instead of reaching Redis)."""
+    sent: list[str] = []
+    monkeypatch.setattr(revival_services, "queue_foundry_run", lambda run_id: sent.append(str(run_id)))
+    return sent
+
+
+@pytest.fixture
+def events(monkeypatch: pytest.MonkeyPatch, queued: list[str]) -> Events:
     recorded: Events = []
 
     def record(project_id: object, event: TelemetryEventType, payload: dict[str, Any]) -> None:
@@ -143,7 +151,7 @@ def test_failed_generation_gets_strategies_unavailable_with_the_detail(client: C
 # POST /approve
 # ---------------------------------------------------------------------------
 def test_approval_locks_in_the_strategy_and_queues_the_foundry_after_commit(
-    client: Client, events: Events, settings: Any, django_capture_on_commit_callbacks: Any
+    client: Client, events: Events, queued: list[str], settings: Any, django_capture_on_commit_callbacks: Any
 ) -> None:
     project = project_with_strategies()
     restore = rows(project)["RESTORE"]
@@ -151,7 +159,7 @@ def test_approval_locks_in_the_strategy_and_queues_the_foundry_after_commit(
 
     with django_capture_on_commit_callbacks(execute=False) as callbacks:
         response = approve(client, restore, token)
-        assert events == []  # nothing is announced before the commit
+        assert events == [] and queued == []  # nothing is announced or queued before the commit
 
     assert response.status_code == 200
     body = response.json()
@@ -174,6 +182,7 @@ def test_approval_locks_in_the_strategy_and_queues_the_foundry_after_commit(
     assert event is TelemetryEventType.STRATEGY_APPROVED
     assert payload["strategy_id"] == str(restore.pk) and payload["strategy_type"] == "RESTORE"
     assert payload["foundry_run_id"] == str(run.pk)
+    assert queued == [str(run.pk)]
 
 
 def test_re_approving_the_same_strategy_is_idempotent(

@@ -30,7 +30,7 @@
 
 - [ ] 6. Implement Systems 4 & 5: 4-Agent Foundry & Product Rebirth (`apps.foundry` & `apps.rebirth`)
   - [x] 6.1 Build `SandboxRunner` in `apps/foundry/sandbox.py` supporting `SANDBOX_MODE="subprocess"` (isolated venv + `pytest` runner) and `SANDBOX_MODE="docker"` (`python:3.11-slim`, port `8010`).
-  - [ ] 6.2 Implement all 4 sequential agents in `apps/foundry/agents.py`: `EnvironmentAgent` -> `ArchitectureAgent` -> `EngineeringAgent` -> `VerificationAgent` (with up to 3 self-healing retry loops).
+  - [-] 6.2 Implement all 4 sequential agents in `apps/foundry/agents.py`: `EnvironmentAgent` -> `ArchitectureAgent` -> `EngineeringAgent` -> `VerificationAgent` (with up to 3 self-healing retry loops).
   - [ ] 6.3 Populate `RebirthArtifact` in `apps.rebirth` (unified Git diff, exported `.kiro/specs/` files written into the target repo, Continuity Memory JSON, and PR summary) and expose `GET /api/projects/{project_id}/rebirth`.
 
 - [ ] 7. Build the Lazarus Forensic MCP Server (`backend/mcp_server/`)
