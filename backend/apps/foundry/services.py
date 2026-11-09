@@ -15,8 +15,9 @@
        ``FAILED``). A failure sets the project ``FAILED`` with a user-safe
        ``status_detail``.
     4. ``on_foundry_complete(run)``: the single place that decides what follows
-       a finished run. The rebirth artifact (Task 6.3) is created there; until
-       then a passing run leaves the project ``FOUNDRY_RUNNING`` and logs.
+       a finished run. A ``COMPLETE`` run with ``tests_passed`` gets its
+       ``RebirthArtifact`` (``apps.rebirth.services.run_rebirth``), which moves
+       the project to ``REBORN``.
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ from django.utils import timezone
 from apps.foundry.agents import Emit, FoundryContext, FoundryPipeline, FoundryResult, StageFailure
 from apps.foundry.models import AgentStage, FoundryRun
 from apps.projects.models import Project, ProjectStatus
+from apps.rebirth.services import run_rebirth
 from apps.revival.approval import approval_is_intact
 from apps.revival.models import RevivalStrategy
 from apps.telemetry.broadcast import broadcast_telemetry
@@ -119,10 +121,12 @@ def persist_result(run: FoundryRun, result: FoundryResult) -> None:
 
 
 def on_foundry_complete(run: FoundryRun, *, emit: Emit) -> None:
-    """Decide what follows a finished run. Never raises. Task 6.3 creates the RebirthArtifact here."""
+    """Decide what follows a finished run. Never raises: a verified run gets its RebirthArtifact."""
     try:
         logger.info("FoundryRun %s finished in %s (tests_passed=%s, iterations_used=%s).",
                     run.pk, run.agent_stage, run.tests_passed, run.iterations_used)
+        if run.agent_stage == AgentStage.COMPLETE and run.tests_passed:
+            run_rebirth(run, emit=emit)
     except Exception:
         logger.exception("The hand-off after FoundryRun %s failed.", run.pk)
 

@@ -30,3 +30,5 @@ openai>=1.50,<4.0
 docker>=7.1,<8.0
 # Requirement and python_requires parsing for the Foundry EnvironmentAgent
 packaging>=23.0
+# Lazarus Forensic MCP server (backend/mcp_server/): official MCP Python SDK v2 (MCPServer, stdio)
+mcp>=2.3,<3.0

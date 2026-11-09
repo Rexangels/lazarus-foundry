@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/*
+ * Lazarus Foundry design tokens (design.md, "Frontend design system").
+ * Palette from tech.md; token aliases match the backend's color_token values.
+ */
+@theme {
+  /* Palette */
+  --color-obsidian: #07090e;
+  --color-slate-core: #0f141c;
+  --color-slate-raised: #151c27;
+  --color-line: #222c3a;
+  --color-emerald-bio: #10b981;
+  --color-amber-pulse: #f59e0b;
+  --color-crimson: #ef4444;
+  --color-violet-electric: #8b5cf6;
+
+  /* Backend color_token aliases */
+  --color-alive: #10b981;
+  --color-dormant: #f59e0b;
+  --color-ghost: #ef4444;
+  --color-conflict: #8b5cf6;
+  --color-neutral-token: #64748b;
+  /* Text tints of the same hues: AA (4.5:1) for small text even on a token-tinted (10 %) chip. */
+  --color-alive-text: #34d399;
+  --color-dormant-text: #fbbf24;
+  --color-ghost-text: #f87171;
+  --color-conflict-text: #a78bfa;
+
+  /* Text */
+  --color-ink: #e6edf3;
+  --color-ink-muted: #94a3b8;
+
+  /* Glows */
+  --shadow-glow-alive: 0 0 0 1px rgb(16 185 129 / 0.35), 0 0 28px -6px rgb(16 185 129 / 0.55);
+  --shadow-glow-dormant: 0 0 0 1px rgb(245 158 11 / 0.35), 0 0 28px -6px rgb(245 158 11 / 0.5);
+  --shadow-glow-ghost: 0 0 0 1px rgb(239 68 68 / 0.35), 0 0 28px -6px rgb(239 68 68 / 0.5);
+  --shadow-glow-conflict: 0 0 0 1px rgb(139 92 246 / 0.4), 0 0 28px -6px rgb(139 92 246 / 0.55);
+
+  /* Motion */
+  --animate-ecg-trace: ecg-trace 2.4s linear infinite;
+  --animate-vital-pulse: vital-pulse 1.6s ease-in-out infinite;
+  --animate-flatline-blink: flatline-blink 2.8s steps(1, end) infinite;
+  --animate-charge: charge 1.1s ease-in-out infinite;
+  --animate-scan: scan 7s linear infinite;
+  --animate-feed-in: feed-in 320ms ease-out both;
+  --animate-sheen: sheen 1.6s linear infinite;
+
+  @keyframes sheen {
+    from {
+      transform: translateX(0) skewX(-12deg);
+    }
+    to {
+      transform: translateX(450%) skewX(-12deg);
+    }
+  }
+
+  @keyframes ecg-trace {
+    from {
+      stroke-dashoffset: 0;
+    }
+    to {
+      stroke-dashoffset: -1200;
+    }
+  }
+  @keyframes vital-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.55;
+      transform: scale(0.82);
+    }
+  }
+  @keyframes flatline-blink {
+    0%,
+    100% {
+      opacity: 0.9;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  @keyframes charge {
+    0%,
+    100% {
+      box-shadow: 0 0 0 1px rgb(16 185 129 / 0.6), 0 0 18px -4px rgb(16 185 129 / 0.6);
+    }
+    50% {
+      box-shadow: 0 0 0 1px rgb(16 185 129 / 0.9), 0 0 42px 0 rgb(16 185 129 / 0.75);
+    }
+  }
+  @keyframes scan {
+    from {
+      transform: translateY(-100%);
+    }
+    to {
+      transform: translateY(100vh);
+    }
+  }
+  @keyframes feed-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* next/font variables (set on <html> in app/layout.tsx) */
+@theme inline {
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-face), var(--font-body), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-forensic), ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background-color: var(--color-obsidian);
+  }
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-obsidian);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: rgb(16 185 129 / 0.35);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-emerald-bio);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /* Faint lab grid behind every screen. */
+  .lab-grid {
+    background-image:
+      linear-gradient(to right, rgb(148 163 184 / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(148 163 184 / 0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  /* CRT scanlines, very faint. */
+  .scanlines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 0.018) 0,
+      rgb(255 255 255 / 0.018) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+  /* Radial emerald glow used behind heroes. */
+  .bio-glow {
+    background: radial-gradient(60% 50% at 50% 0%, rgb(16 185 129 / 0.16), transparent 70%);
+  }
+}
+
+/* Motion is decoration only: everything still reads when it is off. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .motion-scan {
+    display: none;
+  }
+}

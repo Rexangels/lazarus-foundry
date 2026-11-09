@@ -90,6 +90,26 @@ Test markers: `slow` (builds Git repositories or runs real sandboxes; the save h
 cd backend; .\.venv\Scripts\python.exe -m pip download pytest --only-binary=:all: -d ..\.lazarus_data\wheelhouse
 ```
 
+## Kiro MCP server (Lazarus Forensics)
+
+`backend/mcp_server/lazarus_mcp.py` exposes `inspect_dead_branches`, `query_project_genome`, `detect_doc_code_conflicts` and `export_kiro_revival_spec` to Kiro over stdio (official `mcp` SDK, installed by `requirements.txt`). The tools take a local `repo_path` (no database needed) or the `project_id` of an ingested project. Only `export_kiro_revival_spec` writes, and only `.kiro/specs/<spec_name>/` inside `repo_path`.
+
+It is registered in `.kiro/settings/mcp.json` as `lazarus-forensics`. The command must be the backend's virtualenv Python, because a system Python lacks the dependencies:
+
+```json
+{
+  "mcpServers": {
+    "lazarus-forensics": {
+      "command": "backend/.venv/Scripts/python.exe",
+      "args": ["backend/mcp_server/lazarus_mcp.py"],
+      "env": { "LAZARUS_MCP_ALLOWED_ROOTS": "C:/path/to/lazarus-foundry;C:/path/to/dead-repos" }
+    }
+  }
+}
+```
+
+Use absolute paths if Kiro does not start the server from the workspace root. `repo_path` must be inside `LAZARUS_MCP_ALLOWED_ROOTS` (separated by `;` on Windows). By default the allowed roots are this repository, `FIXTURE_ROOT` and `WORKSPACE_ROOT`. The genome is deterministic. Set `LAZARUS_MCP_USE_MODEL=1` to let the reasoning model refine it: that sends repository text to `MODEL_BASE_URL`, and one request took about a minute on PayPulse. Server logs go to stderr; stdout carries only MCP messages.
+
 ## Docker sandbox (Foundry)
 
 The Foundry runs a repository's dependency installs and tests in a sandbox (`apps/foundry/sandbox.py`; the security model is in `.kiro/specs/core-resurrection-engine/design.md`, "Foundry: sandbox").

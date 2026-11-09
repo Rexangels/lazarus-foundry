@@ -28,16 +28,16 @@
   - [x] 5.2 Generate the `.kiro/specs/` recovery bundle (`requirements.md`, `design.md`, `tasks.md`) stored on `RevivalStrategy.generated_kiro_specs`.
   - [x] 5.3 Expose `GET /api/projects/{project_id}/strategies` and `POST /api/projects/{project_id}/strategies/{strategy_id}/approve`.
 
-- [ ] 6. Implement Systems 4 & 5: 4-Agent Foundry & Product Rebirth (`apps.foundry` & `apps.rebirth`)
+- [x] 6. Implement Systems 4 & 5: 4-Agent Foundry & Product Rebirth (`apps.foundry` & `apps.rebirth`)
   - [x] 6.1 Build `SandboxRunner` in `apps/foundry/sandbox.py` supporting `SANDBOX_MODE="subprocess"` (isolated venv + `pytest` runner) and `SANDBOX_MODE="docker"` (`python:3.11-slim`, port `8010`).
-  - [-] 6.2 Implement all 4 sequential agents in `apps/foundry/agents.py`: `EnvironmentAgent` -> `ArchitectureAgent` -> `EngineeringAgent` -> `VerificationAgent` (with up to 3 self-healing retry loops).
-  - [ ] 6.3 Populate `RebirthArtifact` in `apps.rebirth` (unified Git diff, exported `.kiro/specs/` files written into the target repo, Continuity Memory JSON, and PR summary) and expose `GET /api/projects/{project_id}/rebirth`.
+  - [x] 6.2 Implement all 4 sequential agents in `apps/foundry/agents.py`: `EnvironmentAgent` -> `ArchitectureAgent` -> `EngineeringAgent` -> `VerificationAgent` (with up to 3 self-healing retry loops).
+  - [x] 6.3 Populate `RebirthArtifact` in `apps.rebirth` (unified Git diff, exported `.kiro/specs/` files written into the target repo, Continuity Memory JSON, and PR summary) and expose `GET /api/projects/{project_id}/rebirth`.
 
-- [ ] 7. Build the Lazarus Forensic MCP Server (`backend/mcp_server/`)
-  - [ ] 7.1 Build `backend/mcp_server/lazarus_mcp.py` exposing `inspect_dead_branches`, `query_project_genome`, `detect_doc_code_conflicts`, and `export_kiro_revival_spec`.
+- [x] 7. Build the Lazarus Forensic MCP Server (`backend/mcp_server/`)
+  - [x] 7.1 Build `backend/mcp_server/lazarus_mcp.py` exposing `inspect_dead_branches`, `query_project_genome`, `detect_doc_code_conflicts`, and `export_kiro_revival_spec`.
 
 - [ ] 8. Build the Next.js 15 "Necromancer Telemetry" Frontend (`frontend/`)
-  - [ ] 8.1 Build the Landing Page + 1-Click "Resurrect Patient Zero (PayPulse)" trigger.
-  - [ ] 8.2 Build **The Autopsy** (React Flow Genome Graph + Evidence Citations drawer showing `line_start`–`line_end` snippets + Conflict Inspector).
-  - [ ] 8.3 Build **The Defibrillator** (3 Strategy cards with $\text{Score}(S_k)$ breakdown + `.kiro` spec preview + Human Approval Gate button).
-  - [ ] 8.4 Build **The Heartbeat** (4-Agent pipeline progress bar + live WebSocket terminal + Before/After `pytest` output + Unified Diff + Continuity Memory).
+  - [-] 8.1 Build the Landing Page + 1-Click "Resurrect Patient Zero (PayPulse)" trigger.
+  - [~] 8.2 Build **The Autopsy** (React Flow Genome Graph + Evidence Citations drawer showing `line_start`–`line_end` snippets + Conflict Inspector).
+  - [~] 8.3 Build **The Defibrillator** (3 Strategy cards with $\text{Score}(S_k)$ breakdown + `.kiro` spec preview + Human Approval Gate button).
+  - [~] 8.4 Build **The Heartbeat** (4-Agent pipeline progress bar + live WebSocket terminal + Before/After `pytest` output + Unified Diff + Continuity Memory).

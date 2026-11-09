@@ -934,7 +934,11 @@ class EngineeringAgent:
                    for recipe in state.recipes.get(item.id, ())]
         edits, applied, _blocked = self._recipe_edits(recipes, workspace)
         edits = [edit for edit in edits if edit.path in allowed]
-        files = self._write(workspace, edits)
+        try:
+            files = self._write(workspace, edits)
+        except WorkspaceError as exc:
+            result.update(status="FAILED", detail=str(exc))
+            return result
         result.update(files=files, recipes=applied, status="APPLIED" if files else "NO_CHANGES",
                       detail="re-applied recipe(s) whose result was missing" if files
                       else "every deterministic change is already in place; nothing left to repair offline")
