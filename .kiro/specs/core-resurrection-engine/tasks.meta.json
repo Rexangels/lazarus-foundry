@@ -313,6 +313,11 @@
         "executionId": "92e8a0cb-2b02-43b0-ab90-3bef49ab3d6f",
         "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
         "timestamp": 1794246689706
+      },
+      {
+        "executionId": "92e8a0cb-2b02-43b0-ab90-3bef49ab3d6f",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794249143055
       }
     ],
     "8.2 Build **The Autopsy** (React Flow Genome Graph + Evidence Citations drawer showing `line_start`–`line_end` snippets + Conflict Inspector).": [
@@ -320,6 +325,21 @@
         "executionId": "de66397f-38e9-4e77-99a0-62ae4397e11a",
         "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
         "timestamp": 1794235989931
+      },
+      {
+        "executionId": "92e8a0cb-2b02-43b0-ab90-3bef49ab3d6f",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794249143626
+      },
+      {
+        "executionId": "3c3da75b-8066-4480-b9cb-ef6ac086b907",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794313916126
+      },
+      {
+        "executionId": "3c3da75b-8066-4480-b9cb-ef6ac086b907",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794314858961
       }
     ],
     "8.3 Build **The Defibrillator** (3 Strategy cards with $\\text{Score}(S_k)$ breakdown + `.kiro` spec preview + Human Approval Gate button).": [
@@ -327,6 +347,16 @@
         "executionId": "de66397f-38e9-4e77-99a0-62ae4397e11a",
         "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
         "timestamp": 1794235990571
+      },
+      {
+        "executionId": "3c3da75b-8066-4480-b9cb-ef6ac086b907",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794314861109
+      },
+      {
+        "executionId": "3c3da75b-8066-4480-b9cb-ef6ac086b907",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794325523529
       }
     ],
     "8.4 Build **The Heartbeat** (4-Agent pipeline progress bar + live WebSocket terminal + Before/After `pytest` output + Unified Diff + Continuity Memory).": [
@@ -334,6 +364,33 @@
         "executionId": "de66397f-38e9-4e77-99a0-62ae4397e11a",
         "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
         "timestamp": 1794235991278
+      },
+      {
+        "executionId": "3c3da75b-8066-4480-b9cb-ef6ac086b907",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794325526538
+      },
+      {
+        "executionId": "a6559c37-8040-4cfc-aef2-c7a726a66223",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794354368640
+      },
+      {
+        "executionId": "6d35f7e9-09b4-4a87-b5d9-25b618e32b9c",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794356810018
+      },
+      {
+        "executionId": "6d35f7e9-09b4-4a87-b5d9-25b618e32b9c",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794358798642
+      }
+    ],
+    "8. Build the Next.js 15 \"Necromancer Telemetry\" Frontend (`frontend/`)": [
+      {
+        "executionId": "6d35f7e9-09b4-4a87-b5d9-25b618e32b9c",
+        "chatSessionId": "sess_d0b10015-b61c-4d7e-a1c1-06ae063537e0",
+        "timestamp": 1794358799117
       }
     ]
   }

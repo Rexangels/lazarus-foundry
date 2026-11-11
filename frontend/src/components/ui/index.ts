@@ -5,3 +5,4 @@ export { Panel } from "./Panel";
 export { Readout, ReadoutGrid } from "./Readout";
 export { EpistemicBadge, ProjectStatusBadge, TokenBadge, VitalBadge } from "./StatusBadge";
 export { cx } from "./cx";
+export { InlineMarkdown, Markdown } from "./Markdown";

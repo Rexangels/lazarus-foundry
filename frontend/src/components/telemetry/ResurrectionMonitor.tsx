@@ -14,7 +14,14 @@ import { TelemetryFeed } from "./TelemetryFeed";
  * Live view of ingestion and genome synthesis: the ECG, the five-step track, forensic counters and
  * the event feed. Shown while a project has no genome yet; later views reuse it as a status strip.
  */
-export function ResurrectionMonitor({ compact = false }: { compact?: boolean }) {
+export function ResurrectionMonitor({
+  compact = false,
+  defibrillatorLink = true,
+}: {
+  compact?: boolean;
+  /** The "Open the Defibrillator" call to action; off on the Defibrillator itself. */
+  defibrillatorLink?: boolean;
+}) {
   const { project, telemetry, progress, projectId } = useProjectSession();
   const status = project?.status ?? null;
   const alive = telemetry.frames.length > 0 || isInFlight(status) || progress.current > 0;
@@ -72,7 +79,7 @@ export function ResurrectionMonitor({ compact = false }: { compact?: boolean }) 
         </>
       )}
 
-      {strategiesReady && (
+      {strategiesReady && defibrillatorLink && (
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <ButtonLink href={`/foundry/${projectId}/defibrillator`} variant="primary">
             Open the Defibrillator

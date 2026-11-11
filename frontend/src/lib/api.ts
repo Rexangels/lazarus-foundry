@@ -11,6 +11,7 @@
  * The 409 "not ready yet" answers of the genome, strategies and rebirth reads are not errors:
  * they resolve as `{ ready: false, notReady }` so screens can wait for telemetry.
  */
+import { ApiError, isApiError, type ApiErrorKind } from "./apiError";
 import { API_BASE_URL, DEMO_MOCK } from "./config";
 import { MOCK_PROJECT_ID, createMockApiClient } from "./mock/client";
 import type {
@@ -32,32 +33,7 @@ import type {
   StrategiesOut,
 } from "./types";
 
-export type ApiErrorKind = "offline" | "timeout" | "http" | "invalid_response";
-
-export class ApiError extends Error {
-  readonly kind: ApiErrorKind;
-  readonly status: number | null;
-  readonly body: unknown;
-  readonly url: string;
-
-  constructor(kind: ApiErrorKind, message: string, options: { status?: number | null; body?: unknown; url: string }) {
-    super(message);
-    this.name = "ApiError";
-    this.kind = kind;
-    this.status = options.status ?? null;
-    this.body = options.body;
-    this.url = options.url;
-  }
-
-  /** The server's `code` field (409/403 bodies), if any. */
-  get code(): string | null {
-    return isRecord(this.body) && typeof this.body.code === "string" ? this.body.code : null;
-  }
-}
-
-export function isApiError(value: unknown): value is ApiError {
-  return value instanceof ApiError;
-}
+export { ApiError, isApiError, type ApiErrorKind };
 
 export type Readiness<T, NotReady> = { ready: true; data: T } | { ready: false; notReady: NotReady };
 

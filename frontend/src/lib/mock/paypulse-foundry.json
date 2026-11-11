@@ -1,0 +1,415 @@
+[
+ {
+  "event_type": "AGENT_STAGE_CHANGED",
+  "offset_ms": 0,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ENVIRONMENT",
+   "status": "STARTED",
+   "agent": "EnvironmentAgent"
+  }
+ },
+ {
+  "event_type": "SANDBOX_LOG",
+  "offset_ms": 140988,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ENVIRONMENT",
+   "command": "install PINNED (wheelhouse)",
+   "lines": [
+    {
+     "stream": "stdout",
+     "line": "Looking in links: <wheelhouse>"
+    },
+    {
+     "stream": "stderr",
+     "line": "ERROR: Could not find a version that satisfies the requirement pytest==6.2.4 (from versions: 9.2.0)"
+    },
+    {
+     "stream": "stderr",
+     "line": "ERROR: No matching distribution found for pytest==6.2.4"
+    }
+   ]
+  }
+ },
+ {
+  "event_type": "SANDBOX_LOG",
+  "offset_ms": 150756,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ENVIRONMENT",
+   "command": "install RELAXED (wheelhouse)",
+   "lines": [
+    {
+     "stream": "stdout",
+     "line": "Looking in links: <wheelhouse>"
+    },
+    {
+     "stream": "stdout",
+     "line": "Processing <wheelhouse>\\pytest-9.2.0-py3-none-any.whl"
+    },
+    {
+     "stream": "stderr",
+     "line": "ERROR: Could not find a version that satisfies the requirement requests (from versions: none)"
+    },
+    {
+     "stream": "stderr",
+     "line": "ERROR: No matching distribution found for requests"
+    }
+   ]
+  }
+ },
+ {
+  "event_type": "SANDBOX_LOG",
+  "offset_ms": 194041,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ENVIRONMENT",
+   "command": "install TEST_RUNNER_ONLY (wheelhouse)",
+   "lines": [
+    {
+     "stream": "stdout",
+     "line": "Looking in links: <wheelhouse>"
+    },
+    {
+     "stream": "stdout",
+     "line": "Processing <wheelhouse>\\pytest-9.2.0-py3-none-any.whl"
+    },
+    {
+     "stream": "stdout",
+     "line": "Processing <wheelhouse>\\colorama-0.4.6-py2.py3-none-any.whl (from pytest)"
+    },
+    {
+     "stream": "stdout",
+     "line": "Processing <wheelhouse>\\iniconfig-2.3.1-py3-none-any.whl (from pytest)"
+    },
+    {
+     "stream": "stdout",
+     "line": "Processing <wheelhouse>\\packaging-26.3-py3-none-any.whl (from pytest)"
+    },
+    {
+     "stream": "stdout",
+     "line": "Processing <wheelhouse>\\pluggy-1.7.0-py3-none-any.whl (from pytest)"
+    },
+    {
+     "stream": "stdout",
+     "line": "Processing <wheelhouse>\\pygments-2.21.0-py3-none-any.whl (from pytest)"
+    },
+    {
+     "stream": "stdout",
+     "line": "Installing collected packages: pygments, pluggy, packaging, iniconfig, colorama, pytest"
+    },
+    {
+     "stream": "stdout",
+     "line": ""
+    },
+    {
+     "stream": "stdout",
+     "line": "Successfully installed colorama-0.4.6 iniconfig-2.3.1 packaging-26.3 pluggy-1.7.0 pygments-2.21.0 pytest-9.2.0"
+    }
+   ]
+  }
+ },
+ {
+  "event_type": "SANDBOX_LOG",
+  "offset_ms": 198262,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ENVIRONMENT",
+   "command": "pytest (baseline)",
+   "lines": [
+    {
+     "stream": "stdout",
+     "line": "...............F                                                         [100%]"
+    },
+    {
+     "stream": "stdout",
+     "line": "================================== FAILURES ==================================="
+    },
+    {
+     "stream": "stdout",
+     "line": "_______________ test_dispatch_retries_with_exponential_backoff ________________"
+    },
+    {
+     "stream": "stdout",
+     "line": ""
+    },
+    {
+     "stream": "stdout",
+     "line": "    def test_dispatch_retries_with_exponential_backoff():"
+    },
+    {
+     "stream": "stdout",
+     "line": "        # Spec from docs/architecture-notes.md: retry 5xx responses, doubling the delay."
+    },
+    {
+     "stream": "stdout",
+     "line": "        transport = RecordingTransport([503, 503, 200])"
+    },
+    {
+     "stream": "stdout",
+     "line": "        sleeps = []"
+    },
+    {
+     "stream": "stdout",
+     "line": ">       dispatcher = WebhookDispatcher("
+    },
+    {
+     "stream": "stdout",
+     "line": "            secret=\"whsec_test\","
+    },
+    {
+     "stream": "stdout",
+     "line": "            transport=transport,"
+    },
+    {
+     "stream": "stdout",
+     "line": "            max_attempts=4,"
+    }
+   ]
+  }
+ },
+ {
+  "event_type": "SANDBOX_LOG",
+  "offset_ms": 198262,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ENVIRONMENT",
+   "command": "pytest (baseline)",
+   "lines": [
+    {
+     "stream": "stdout",
+     "line": "            base_delay=0.5,"
+    },
+    {
+     "stream": "stdout",
+     "line": "            sleep=sleeps.append,"
+    },
+    {
+     "stream": "stdout",
+     "line": "        )"
+    },
+    {
+     "stream": "stdout",
+     "line": "E       TypeError: WebhookDispatcher.__init__() got an unexpected keyword argument 'max_attempts'"
+    },
+    {
+     "stream": "stdout",
+     "line": ""
+    },
+    {
+     "stream": "stdout",
+     "line": "tests\\test_webhooks.py:48: TypeError"
+    },
+    {
+     "stream": "stdout",
+     "line": "=========================== short test summary info ==========================="
+    },
+    {
+     "stream": "stdout",
+     "line": "FAILED tests/test_webhooks.py::test_dispatch_retries_with_exponential_backoff"
+    },
+    {
+     "stream": "stdout",
+     "line": "1 failed, 15 passed in 0.88s"
+    }
+   ]
+  }
+ },
+ {
+  "event_type": "TEST_FAILED",
+  "offset_ms": 198262,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "phase": "BASELINE",
+   "iteration": null,
+   "exit_code": 1,
+   "timed_out": false,
+   "succeeded": false,
+   "totals": {
+    "tests": 16,
+    "passed": 15,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 0
+   },
+   "failed": [
+    "tests/test_webhooks.py::test_dispatch_retries_with_exponential_backoff"
+   ],
+   "collection_error": false,
+   "junit_error": null,
+   "duration_seconds": 2.848
+  }
+ },
+ {
+  "event_type": "AGENT_STAGE_CHANGED",
+  "offset_ms": 198262,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ENVIRONMENT",
+   "status": "COMPLETED",
+   "agent": "EnvironmentAgent"
+  }
+ },
+ {
+  "event_type": "AGENT_STAGE_CHANGED",
+  "offset_ms": 198262,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ARCHITECTURE",
+   "status": "STARTED",
+   "agent": "ArchitectureAgent"
+  }
+ },
+ {
+  "event_type": "AGENT_STAGE_CHANGED",
+  "offset_ms": 199933,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ARCHITECTURE",
+   "status": "COMPLETED",
+   "agent": "ArchitectureAgent"
+  }
+ },
+ {
+  "event_type": "AGENT_STAGE_CHANGED",
+  "offset_ms": 199933,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ENGINEERING",
+   "status": "STARTED",
+   "agent": "EngineeringAgent"
+  }
+ },
+ {
+  "event_type": "AGENT_STAGE_CHANGED",
+  "offset_ms": 199988,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "ENGINEERING",
+   "status": "COMPLETED",
+   "agent": "EngineeringAgent"
+  }
+ },
+ {
+  "event_type": "AGENT_STAGE_CHANGED",
+  "offset_ms": 199988,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "VERIFICATION",
+   "status": "STARTED",
+   "agent": "VerificationAgent"
+  }
+ },
+ {
+  "event_type": "SANDBOX_LOG",
+  "offset_ms": 202595,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "VERIFICATION",
+   "command": "pytest (verification 0)",
+   "lines": [
+    {
+     "stream": "stdout",
+     "line": ".......................................                                  [100%]"
+    },
+    {
+     "stream": "stdout",
+     "line": "39 passed in 0.65s"
+    }
+   ]
+  }
+ },
+ {
+  "event_type": "TEST_PASSED",
+  "offset_ms": 202595,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "phase": "VERIFICATION",
+   "iteration": 0,
+   "passed": true,
+   "full": {
+    "exit_code": 0,
+    "timed_out": false,
+    "succeeded": true,
+    "totals": {
+     "tests": 39,
+     "passed": 39,
+     "failed": 0,
+     "errors": 0,
+     "skipped": 0
+    },
+    "failed": [],
+    "collection_error": false,
+    "junit_error": null,
+    "duration_seconds": 2.572
+   },
+   "targets_run_separately": null,
+   "target_outcomes": {
+    "tests/test_retry.py": "PASSED",
+    "tests/test_webhooks.py::test_dispatch_retries_with_exponential_backoff": "PASSED",
+    "tests/test_currency.py": "PASSED"
+   },
+   "regressions": [],
+   "reasons": []
+  }
+ },
+ {
+  "event_type": "AGENT_STAGE_CHANGED",
+  "offset_ms": 202595,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "VERIFICATION",
+   "status": "COMPLETED",
+   "agent": "VerificationAgent"
+  }
+ },
+ {
+  "event_type": "AGENT_STAGE_CHANGED",
+  "offset_ms": 204405,
+  "payload": {
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "stage": "COMPLETE",
+   "status": "COMPLETE",
+   "tests_passed": true,
+   "iterations_used": 0
+  }
+ },
+ {
+  "event_type": "REBIRTH_COMPLETE",
+  "offset_ms": 208379,
+  "payload": {
+   "rebirth_artifact_id": "d4f6a8c0-2e1b-4c3d-9a5e-8b7c6d5e4f01",
+   "foundry_run_id": "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b",
+   "pr_title": "Lazarus RESTORE: Restore PayPulse (Patient Zero) in its current stack",
+   "revival_branch": "lazarus/restore-7e1d2c3b",
+   "base_sha": "047fc3e28b95ec860e91089679aa7e01d04fc87a",
+   "rebirth_commit_sha": "0220a8b424d112d34410d9e1bc59ef92d50223c4",
+   "files_changed": 8,
+   "additions": 657,
+   "deletions": 14,
+   "diff_truncated": false,
+   "exported_kiro_specs_path": ".kiro/specs/lazarus-restore-paypulse-patient-zero",
+   "spec_files": [
+    ".kiro/specs/lazarus-restore-paypulse-patient-zero/requirements.md",
+    ".kiro/specs/lazarus-restore-paypulse-patient-zero/design.md",
+    ".kiro/specs/lazarus-restore-paypulse-patient-zero/tasks.md"
+   ],
+   "before": {
+    "tests": 16,
+    "passed": 15,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 0
+   },
+   "after": {
+    "tests": 39,
+    "passed": 39,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+   },
+   "preview_url": ""
+  }
+ }
+]

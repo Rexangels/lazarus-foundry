@@ -15,8 +15,8 @@ import { useEffect, useReducer, useRef } from "react";
 
 import { telemetryUrl, telemetryWsPath } from "./config";
 import { isMockProject } from "./api";
-import { mockRunStartedAt } from "./mock/client";
-import { MOCK_TELEMETRY_SCRIPT, mockFrames } from "./mock/telemetry";
+import { mockApproval, mockRunStartedAt, subscribeMockFrames } from "./mock/client";
+import { MOCK_TELEMETRY_SCRIPT, mockApprovalFrames, mockFoundryTimeline, mockFrames } from "./mock/telemetry";
 import { TELEMETRY_EVENT_TYPES, type ServerFrame, type TelemetryFrame } from "./types";
 
 export type ConnectionState = "idle" | "connecting" | "open" | "reconnecting" | "closed" | "not_found" | "replay";
@@ -237,10 +237,35 @@ function replayMock(dispatch: (action: Action) => void, deliver: (frames: Teleme
   const all = mockFrames(startedAt);
   const timers: ReturnType<typeof setTimeout>[] = [];
   const now = Date.now() - startedAt;
-  deliver(mockFrames(startedAt, now));
+  deliver([...mockFrames(startedAt, now), ...mockApprovalFrames(mockApproval())]);
   MOCK_TELEMETRY_SCRIPT.forEach((event, index) => {
     const frame = all[index];
     if (event.at > now && frame) timers.push(setTimeout(() => deliver([frame]), event.at - now));
   });
-  return () => timers.forEach(clearTimeout);
+  // The recorded Foundry run, replayed from the approval time (frames already due arrive at once).
+  const foundryTimers: ReturnType<typeof setTimeout>[] = [];
+  const scheduleFoundry = () => {
+    foundryTimers.forEach(clearTimeout);
+    foundryTimers.length = 0;
+    const approval = mockApproval();
+    if (!approval) return;
+    const since = Date.now() - approval.approvedAt;
+    const timeline = mockFoundryTimeline(approval);
+    const due = timeline.filter((entry) => entry.at <= since).map((entry) => entry.frame);
+    if (due.length) deliver(due);
+    timeline.forEach((entry) => {
+      if (entry.at > since) foundryTimers.push(setTimeout(() => deliver([entry.frame]), entry.at - since));
+    });
+  };
+  scheduleFoundry();
+  // Frames the demo emits live (a human approval in The Defibrillator), which also start the Foundry replay.
+  const unsubscribe = subscribeMockFrames((frames) => {
+    deliver(frames);
+    if (frames.some((frame) => frame.event_type === "STRATEGY_APPROVED")) scheduleFoundry();
+  });
+  return () => {
+    timers.forEach(clearTimeout);
+    foundryTimers.forEach(clearTimeout);
+    unsubscribe();
+  };
 }

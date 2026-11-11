@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ComponentProps, ReactNode, Ref } from "react";
 
 import { cx } from "./cx";
 
@@ -44,6 +44,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Shows a busy state (aria-busy) and keeps the label readable. */
   busy?: boolean;
   icon?: ReactNode;
+  /** React 19 passes `ref` as a prop; it reaches the <button> (focus management). */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function Button({

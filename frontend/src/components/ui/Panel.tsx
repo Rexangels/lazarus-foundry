@@ -40,6 +40,7 @@ export function Panel({
 }: PanelProps) {
   const toneClasses = tone ? colorTokenClasses(tone) : null;
   const bracket = cx("pointer-events-none absolute h-3 w-3", toneClasses ? toneClasses.border : "border-ink-muted/40");
+  const hasHeader = Boolean(eyebrow || title || actions);
   return (
     <Tag
       aria-labelledby={title && headingId ? headingId : undefined}
@@ -53,7 +54,7 @@ export function Panel({
       <span aria-hidden className={cx(bracket, "-right-px -top-px rounded-tr-lg border-r-2 border-t-2")} />
       <span aria-hidden className={cx(bracket, "-bottom-px -left-px rounded-bl-lg border-b-2 border-l-2")} />
       <span aria-hidden className={cx(bracket, "-bottom-px -right-px rounded-br-lg border-b-2 border-r-2")} />
-      {(eyebrow || title || actions) && (
+      {hasHeader && (
         <header className={cx("flex items-start justify-between gap-4", padded ? "px-5 pt-4" : "px-4 pt-3")}>
           <div className="min-w-0">
             {eyebrow && (
@@ -68,7 +69,7 @@ export function Panel({
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={cx(padded ? "p-5" : "p-3", (eyebrow || title || actions) && "pt-3")}>{children}</div>
+      <div className={cx(padded ? "p-5" : "p-3", hasHeader && "pt-3")}>{children}</div>
     </Tag>
   );
 }

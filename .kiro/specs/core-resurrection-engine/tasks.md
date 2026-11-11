@@ -36,8 +36,8 @@
 - [x] 7. Build the Lazarus Forensic MCP Server (`backend/mcp_server/`)
   - [x] 7.1 Build `backend/mcp_server/lazarus_mcp.py` exposing `inspect_dead_branches`, `query_project_genome`, `detect_doc_code_conflicts`, and `export_kiro_revival_spec`.
 
-- [ ] 8. Build the Next.js 15 "Necromancer Telemetry" Frontend (`frontend/`)
-  - [-] 8.1 Build the Landing Page + 1-Click "Resurrect Patient Zero (PayPulse)" trigger.
-  - [~] 8.2 Build **The Autopsy** (React Flow Genome Graph + Evidence Citations drawer showing `line_start`–`line_end` snippets + Conflict Inspector).
-  - [~] 8.3 Build **The Defibrillator** (3 Strategy cards with $\text{Score}(S_k)$ breakdown + `.kiro` spec preview + Human Approval Gate button).
-  - [~] 8.4 Build **The Heartbeat** (4-Agent pipeline progress bar + live WebSocket terminal + Before/After `pytest` output + Unified Diff + Continuity Memory).
+- [x] 8. Build the Next.js 15 "Necromancer Telemetry" Frontend (`frontend/`)
+  - [x] 8.1 Build the Landing Page + 1-Click "Resurrect Patient Zero (PayPulse)" trigger.
+  - [x] 8.2 Build **The Autopsy** (React Flow Genome Graph + Evidence Citations drawer showing `line_start`–`line_end` snippets + Conflict Inspector).
+  - [x] 8.3 Build **The Defibrillator** (3 Strategy cards with $\text{Score}(S_k)$ breakdown + `.kiro` spec preview + Human Approval Gate button).
+  - [x] 8.4 Build **The Heartbeat** (4-Agent pipeline progress bar + live WebSocket terminal + Before/After `pytest` output + Unified Diff + Continuity Memory).

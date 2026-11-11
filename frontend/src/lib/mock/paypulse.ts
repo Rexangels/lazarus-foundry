@@ -349,6 +349,20 @@ export const MOCK_CONFLICTS: ConflictOut[] = [
   ),
 ];
 
+/**
+ * The rule that decided each recorded status. These follow from the classifiers alone
+ * (scoring.classify_epistemic_status, reconciler.classify_vital): a conflict always decides
+ * CONFLICTED; retries has unmerged-branch code and no head stub; currency's convert() is a head stub.
+ */
+const VITAL_REASON: Record<string, string> = {
+  [F.ledger]: "HEAD_IMPLEMENTATION",
+  [F.invoices]: "HEAD_IMPLEMENTATION",
+  [F.webhooks]: "HEAD_IMPLEMENTATION",
+  [F.retries]: "BRANCH_ONLY",
+  [F.currency]: "HEAD_STUB",
+  [F.pdf]: "NO_IMPLEMENTATION",
+};
+
 function breakdown(node: FeatureNode): ScoreBreakdownOut {
   return {
     confidence: node.data.confidence_score,
@@ -359,9 +373,9 @@ function breakdown(node: FeatureNode): ScoreBreakdownOut {
     conflict_penalty: node.data.conflict_count > 0 ? 0.4 : 0,
     contributions: [],
     epistemic_status: node.data.epistemic_status,
-    status_reason: null,
+    status_reason: node.data.epistemic_status === "CONFLICTED" ? "CONFLICT" : "ABOVE_KNOWN_THRESHOLD",
     vital_status: node.data.vital_status,
-    vital_status_reason: null,
+    vital_status_reason: VITAL_REASON[node.id] ?? null,
     feature_key: node.data.feature_key,
     origin: null,
     matched_evidence_count: node.data.citation_count,

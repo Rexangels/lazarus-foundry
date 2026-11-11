@@ -223,6 +223,9 @@ __marimo__/
 frontend/.next/
 frontend/node_modules/
 frontend/out/
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo
+frontend/.env*.local
 
 # Generated fixture repos and runtime workspaces
 lazarus_workspaces/

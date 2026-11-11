@@ -4,14 +4,29 @@
  * `resurrectPatientZero()` is called; the start time is kept in sessionStorage so a reload resumes
  * the same run instead of restarting it.
  *
- * Strategies and rebirth are not recorded yet, so those reads answer the same 409 bodies the backend
- * sends for a project that has not reached those stages.
+ * The strategies are the recorded backend output (mock/strategies.ts, loaded on demand), and
+ * approving one works: it is kept in sessionStorage for the current run, moves the project to
+ * STRATEGY_APPROVED and emits the STRATEGY_APPROVED frame. Approving RESTORE then replays the
+ * recorded Foundry run from the approval time (mock/telemetry.ts MOCK_FOUNDRY_SCRIPT, about 30 s):
+ * FOUNDRY_RUNNING, then REBORN, after which the rebirth read returns the recorded RebirthOut
+ * (mock/rebirth.ts, loaded on demand). Until then it answers the backend's 409 REBIRTH_PENDING body.
+ * Only RESTORE was recorded; another approved strategy stays STRATEGY_APPROVED.
  */
 import type { ApiClient } from "../api";
+import { ApiError } from "../apiError";
 import { telemetryWsPath } from "../config";
-import type { NotReadyOut, ProjectOut } from "../types";
+import type { NotReadyOut, ProjectOut, ProjectStatus, TelemetryFrame } from "../types";
 import { MOCK_DEFAULT_BRANCH, MOCK_PROJECT_ID, MOCK_PROJECT_NAME, buildMockGenome } from "./paypulse";
-import { MOCK_GENOME_COMPLETE_AT, mockStatusAt } from "./telemetry";
+import {
+  MOCK_FOUNDRY_RUN_ID,
+  MOCK_GENOME_COMPLETE_AT,
+  MOCK_STRATEGIES_READY_AT,
+  mockApprovalFrames,
+  mockFoundryRecorded,
+  mockFoundryStatusAt,
+  mockStatusAt,
+  type MockApprovalRecord,
+} from "./telemetry";
 
 export { MOCK_PROJECT_ID };
 
@@ -38,11 +53,81 @@ export function mockRunStartedAt(now: number = Date.now()): number {
 export function restartMockRun(now: number = Date.now()): number {
   memoryStart = now;
   storage()?.setItem(START_KEY, String(now));
+  saveMockApproval(null); // a new run has not been approved
   return now;
 }
 
 function elapsed(): number {
   return Date.now() - mockRunStartedAt();
+}
+
+// ---------------------------------------------------------------------------
+// The offline demo's human approval (The Defibrillator). The Heartbeat replays the Foundry from
+// `mockApproval().approvedAt`.
+// ---------------------------------------------------------------------------
+const APPROVAL_KEY = "lazarus.mock.approval";
+let memoryApproval: MockApprovalRecord | null | undefined;
+
+function isApprovalRecord(value: unknown): value is MockApprovalRecord {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.strategyId === "string" &&
+    typeof v.approvalToken === "string" &&
+    typeof v.approvedAt === "number" &&
+    typeof v.approvedBy === "string" &&
+    typeof v.foundryRunId === "string" &&
+    typeof v.runStartedAt === "number"
+  );
+}
+
+function saveMockApproval(record: MockApprovalRecord | null): void {
+  memoryApproval = record;
+  if (record) storage()?.setItem(APPROVAL_KEY, JSON.stringify(record));
+  else storage()?.removeItem(APPROVAL_KEY);
+}
+
+/** The approval of the current recorded run, if a human approved a strategy in this tab. */
+export function mockApproval(): MockApprovalRecord | null {
+  if (memoryApproval === undefined) {
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(storage()?.getItem(APPROVAL_KEY) ?? "null");
+    } catch {
+      parsed = null;
+    }
+    memoryApproval = isApprovalRecord(parsed) ? parsed : null;
+  }
+  return memoryApproval && memoryApproval.runStartedAt === mockRunStartedAt() ? memoryApproval : null;
+}
+
+/**
+ * The recorded project's status: the replay clock, then, once a human approved, the Foundry replay
+ * clock (STRATEGY_APPROVED → FOUNDRY_RUNNING → REBORN; mock/telemetry.ts mockFoundryStatusAt).
+ */
+export function mockProjectStatus(now: number = Date.now()): ProjectStatus {
+  const status = mockStatusAt(now - mockRunStartedAt(now));
+  const approval = mockApproval();
+  return status === "AUTOPSY_COMPLETE" && approval ? mockFoundryStatusAt(approval, now - approval.approvedAt) : status;
+}
+
+const frameListeners = new Set<(frames: TelemetryFrame[]) => void>();
+
+/** Live frames the mock emits outside the scripted replay (the approval); used by lib/ws.ts. */
+export function subscribeMockFrames(listener: (frames: TelemetryFrame[]) => void): () => void {
+  frameListeners.add(listener);
+  return () => {
+    frameListeners.delete(listener);
+  };
+}
+
+function emitMockFrames(frames: TelemetryFrame[]): void {
+  if (frames.length) frameListeners.forEach((listener) => listener(frames));
+}
+
+/** The recorded run's id, so the replayed frames, the revival branch and the rebirth agree. */
+function mockFoundryRunId(): string {
+  return MOCK_FOUNDRY_RUN_ID;
 }
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -52,7 +137,7 @@ function notReady<Code extends string>(code: Code, detail: string): NotReadyOut<
     detail,
     code,
     project_id: MOCK_PROJECT_ID,
-    status: mockStatusAt(elapsed()),
+    status: mockProjectStatus(),
     status_detail: "",
     telemetry_ws_path: telemetryWsPath(MOCK_PROJECT_ID),
   };
@@ -66,7 +151,7 @@ function project(): ProjectOut {
     name: MOCK_PROJECT_NAME,
     repo_url: "",
     is_golden_demo: true,
-    status: mockStatusAt(ms),
+    status: mockProjectStatus(),
     status_detail: "",
     default_branch: ingested ? MOCK_DEFAULT_BRANCH : "",
     created_at: new Date(mockRunStartedAt()).toISOString(),
@@ -123,19 +208,61 @@ export function createMockApiClient(): ApiClient {
       return { ready: true, data: buildMockGenome() };
     },
     async getStrategies() {
-      return {
-        ready: false,
-        notReady: notReady("STRATEGIES_UNAVAILABLE", "The offline demo does not include revival strategies yet."),
-      };
+      const ms = elapsed();
+      if (ms < MOCK_GENOME_COMPLETE_AT) {
+        return {
+          ready: false,
+          notReady: notReady(
+            "STRATEGIES_PENDING",
+            `The strategies are not ready: the project is ${mockProjectStatus()}. Follow the telemetry WebSocket and request them again after STRATEGY_GENERATED.`,
+          ),
+        };
+      }
+      if (ms < MOCK_STRATEGIES_READY_AT) {
+        // The moment between AUTOPSY_COMPLETE and the strategy rows being written.
+        return {
+          ready: false,
+          notReady: notReady("STRATEGIES_UNAVAILABLE", "No revival strategies exist: the project is AUTOPSY_COMPLETE."),
+        };
+      }
+      const { buildMockStrategies } = await import("./strategies");
+      return { ready: true, data: buildMockStrategies(mockProjectStatus(), mockApproval()) };
     },
-    async approveStrategy() {
-      throw new Error("The offline demo cannot approve strategies.");
+    async approveStrategy(_projectId, strategyId, approvalToken, options = {}) {
+      const { mockApprove } = await import("./strategies");
+      await delay(900); // the capacitor discharge is part of the show
+      const url = `/api/projects/${MOCK_PROJECT_ID}/strategies/${strategyId}/approve`;
+      const outcome = mockApprove({
+        status: mockProjectStatus(),
+        approval: mockApproval(),
+        strategyId,
+        token: approvalToken.trim().toLowerCase(),
+        approver: (options.approver ?? "").trim(),
+        now: Date.now(),
+        runStartedAt: mockRunStartedAt(),
+        foundryRunId: mockFoundryRunId(),
+      });
+      if (!outcome.ok) {
+        throw new ApiError("http", outcome.body.detail, { status: outcome.status, body: outcome.body, url });
+      }
+      if (!outcome.body.already_approved) {
+        saveMockApproval(outcome.approval);
+        emitMockFrames(mockApprovalFrames(outcome.approval));
+      }
+      return outcome.body;
     },
     async getRebirth() {
-      return {
-        ready: false,
-        notReady: notReady("REBIRTH_PENDING", "The offline demo does not include a rebirth artifact yet."),
-      };
+      const status = mockProjectStatus();
+      const approval = mockApproval();
+      if (status === "REBORN" && mockFoundryRecorded(approval)) {
+        const { buildMockRebirth } = await import("./rebirth");
+        return { ready: true, data: buildMockRebirth(approval) };
+      }
+      const detail =
+        approval && !mockFoundryRecorded(approval)
+          ? "The rebirth artifact is not ready: the offline demo recorded the Foundry run of the RESTORE strategy only."
+          : `The rebirth artifact is not ready: the project is ${status}. Follow the telemetry WebSocket and request it again after REBIRTH_COMPLETE.`;
+      return { ready: false, notReady: notReady("REBIRTH_PENDING", detail) };
     },
     specDocumentUrl(path) {
       return path;

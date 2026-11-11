@@ -6,29 +6,43 @@ import { cx } from "./cx";
 const WIDTH = 600;
 const BASELINE = 60;
 
-/** One P-QRS-T complex, 200 units wide, starting at x. */
-function beat(x: number, amplitude: number): string {
+/** One P-QRS-T complex, `width` units wide (200 by default), starting at x. */
+function beat(x: number, amplitude: number, width = 200): string {
   const a = amplitude;
+  const s = width / 200;
+  const at = (dx: number) => Math.round((x + dx * s) * 10) / 10;
   return [
-    `L${x + 38} ${BASELINE}`,
-    `Q${x + 48} ${BASELINE - 9 * a} ${x + 58} ${BASELINE}`,
-    `L${x + 80} ${BASELINE}`,
-    `L${x + 86} ${BASELINE + 7 * a}`,
-    `L${x + 93} ${BASELINE - 48 * a}`,
-    `L${x + 100} ${BASELINE + 16 * a}`,
-    `L${x + 106} ${BASELINE}`,
-    `L${x + 128} ${BASELINE}`,
-    `Q${x + 145} ${BASELINE - 14 * a} ${x + 162} ${BASELINE}`,
-    `L${x + 200} ${BASELINE}`,
+    `L${at(38)} ${BASELINE}`,
+    `Q${at(48)} ${BASELINE - 9 * a} ${at(58)} ${BASELINE}`,
+    `L${at(80)} ${BASELINE}`,
+    `L${at(86)} ${BASELINE + 7 * a}`,
+    `L${at(93)} ${BASELINE - 48 * a}`,
+    `L${at(100)} ${BASELINE + 16 * a}`,
+    `L${at(106)} ${BASELINE}`,
+    `L${at(128)} ${BASELINE}`,
+    `Q${at(145)} ${BASELINE - 14 * a} ${at(162)} ${BASELINE}`,
+    `L${at(200)} ${BASELINE}`,
   ].join(" ");
 }
 
 export const ECG_PATH = `M0 ${BASELINE} ${beat(0, 1)} ${beat(200, 1)} ${beat(400, 1)}`;
 export const FLATLINE_PATH = `M0 ${BASELINE} L${WIDTH} ${BASELINE}`;
+/** An irregular rhythm: uneven spacing, a weak beat, a pause and an oversized one (a failing suite). */
+export const ERRATIC_PATH = [
+  `M0 ${BASELINE}`,
+  beat(0, 0.9, 150),
+  beat(150, 0.35, 80),
+  `L262 ${BASELINE} L268 ${BASELINE - 4} L274 ${BASELINE + 3} L300 ${BASELINE}`,
+  beat(300, 1.3, 110),
+  beat(410, 0.5, 70),
+  beat(480, 0.8, 120),
+].join(" ");
+
+const PATHS = { flat: FLATLINE_PATH, pulse: ECG_PATH, erratic: ERRATIC_PATH } as const;
 
 export interface HeartbeatLineProps {
-  /** `flat`: no vital signs. `pulse`: a live, tracing ECG. */
-  state: "flat" | "pulse";
+  /** `flat`: no vital signs. `pulse`: a live, tracing ECG. `erratic`: an irregular, failing rhythm. */
+  state: "flat" | "pulse" | "erratic";
   token?: ColorToken;
   className?: string;
   /** Accessible description; the line is decorative when omitted. */
@@ -43,7 +57,8 @@ export interface HeartbeatLineProps {
  */
 export function HeartbeatLine({ state, token = "alive", className, label, period = 2.4 }: HeartbeatLineProps) {
   const color = COLOR_TOKEN_HEX[token];
-  const path = state === "pulse" ? ECG_PATH : FLATLINE_PATH;
+  const path = PATHS[state];
+  const tracing = state !== "flat";
   return (
     <svg
       viewBox={`0 0 ${WIDTH} 100`}
@@ -66,13 +81,13 @@ export function HeartbeatLine({ state, token = "alive", className, label, period
         d={path}
         fill="none"
         stroke={color}
-        strokeOpacity={state === "pulse" ? 0.45 : 0.6}
+        strokeOpacity={tracing ? 0.45 : 0.6}
         strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
         strokeLinejoin="round"
         className={state === "flat" ? "animate-flatline-blink" : undefined}
       />
-      {state === "pulse" && (
+      {tracing && (
         <path
           d={path}
           fill="none"
